@@ -60,6 +60,25 @@ Done:
   (checked with `/api/v1/ping`), report building, upload with retries.
 - GitHub: `galijas/dtcollector`, `main` pushed 2026-09-28.
 
+## Live system
+
+- Upgrade: on the server, `cd /root/dtcollector && git pull && sudo ./install.sh`
+  (Enter keeps the saved DNS name and email). Claude doesn't run commands
+  there; it gives the commands to run.
+- 2026-09-28 first install: the server is a container, `ufw enable` failed
+  and `set -e` aborted the script before the admin password was printed.
+  Fixed in `a4fc0eb` (skip ufw in containers, print the password on exit).
+  The admin password was reset with `reset-password`.
+
+## Next session
+
+1. Admin creates upload keys in the web interface (one per site/network).
+2. Build SwarmDialer's side in `~/claude/SwarmDialer` against `docs/api.md`:
+   key entry and `/api/v1/ping` check in the Setup Wizard, report built
+   from an allowlist of fields, upload with retries, local copy kept.
+3. Settle the open items above while doing 2, and update `docs/api.md`
+   and the validation in `internal/report` together if anything changes.
+
 ## Development notes
 
 - Local run without TLS: `dtcollector serve -dev-addr 127.0.0.1:8080 -data-dir ./data`.
