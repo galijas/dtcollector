@@ -1,0 +1,89 @@
+{{define "content"}}
+{{$m := .Data.Meta}}{{$r := .Data.R}}{{$h := $r.Environment.Host}}
+<div class="spread">
+  <div>
+    <h1>{{if $h.CPUModel}}{{$h.CPUModel}}{{else}}Unknown CPU{{end}}</h1>
+    <p class="sub">Report created {{ts $m.CreatedAt}} · received {{ts $m.ReceivedAt}} · from {{if $m.KeyName}}<strong>{{$m.KeyName}}</strong>{{else}}a deleted key{{end}} · SwarmDialer {{$r.SwarmDialerVersion}} · profile {{$m.Profile}}</p>
+  </div>
+  <div class="row">
+    <a class="button" href="/reports/{{$m.ID}}/json?download=1">Download JSON</a>
+    <form class="inline" method="post" action="/reports/{{$m.ID}}/delete" data-confirm="Delete this report permanently?"><button class="danger" type="submit">Delete report</button></form>
+  </div>
+</div>
+
+<form class="card row" method="post" action="/reports/{{$m.ID}}/note">
+  <label>Note (visible to admins only, searchable) <input type="text" name="note" maxlength="500" size="70" value="{{$m.Note}}" placeholder="e.g. customer site, rack, anything that identifies this host"></label>
+  <button type="submit">Save note</button>
+</form>
+
+<h2>Environment</h2>
+<div class="charts">
+  <div class="card">
+    <h3>Host</h3>
+    <table class="kv"><tbody>
+      <tr><th>CPU</th><td>{{if $h.CPUModel}}{{$h.CPUModel}}{{else}}<span class="muted">unknown</span>{{end}}</td></tr>
+      <tr><th>Sockets / cores / threads</th><td>{{$h.CPUSockets}} / {{$h.CPUCores}} / {{$h.CPUThreads}}</td></tr>
+      <tr><th>Max clock</th><td>{{if $h.CPUMaxMHz}}{{num $h.CPUMaxMHz}} MHz{{else}}<span class="muted">unknown</span>{{end}}</td></tr>
+      <tr><th>Memory</th><td>{{gib $h.MemoryBytes}}</td></tr>
+      <tr><th>Disks</th><td>{{range $h.Disks}}<div>{{if .SizeBytes}}{{gb .SizeBytes}} {{end}}{{.Type}} {{.Model}}</div>{{else}}<span class="muted">none reported</span>{{end}}</td></tr>
+      <tr><th>Network</th><td>{{range $h.Network}}<div>{{num .SpeedMbps}} Mbit/s</div>{{else}}<span class="muted">none reported</span>{{end}}</td></tr>
+      <tr><th>SERVERware</th><td>{{$r.Environment.Serverware.Version}} {{$r.Environment.Serverware.Edition}}</td></tr>
+    </tbody></table>
+  </div>
+  <div class="card">
+    <h3>PBXware</h3>
+    <table><thead><tr><th>Role</th><th>Version</th><th>Edition</th><th class="num">License channels</th></tr></thead><tbody>
+      {{range $r.Environment.PBXware}}<tr><td>{{.Role}}</td><td>{{.Version}}</td><td>{{.Edition}}</td><td class="num">{{.LicenseChannels}}</td></tr>{{end}}
+    </tbody></table>
+    <h3>VPS limits</h3>
+    <table><thead><tr><th>VPS</th><th class="num">CPU limit</th><th class="num">CPU share</th><th class="num">Memory limit</th><th class="num">Recording RAM disk</th></tr></thead><tbody>
+      {{range .Data.VPSNames}}{{$v := index $r.Environment.VPS .}}
+      <tr><td>{{.}}</td>
+        <td class="num">{{if $v.CPULimit}}{{num $v.CPULimit}}{{else}}none{{end}}</td>
+        <td class="num">{{with $v.CPUShare}}{{num (deref .)}}{{else}}–{{end}}</td>
+        <td class="num">{{if $v.MemLimitMB}}{{num $v.MemLimitMB}} MB{{else}}none{{end}}</td>
+        <td class="num">{{with $v.CallrecRAMMB}}{{num (deref .)}} MB{{else}}–{{end}}</td></tr>
+      {{end}}
+    </tbody></table>
+  </div>
+</div>
+
+<h2>Results</h2>
+<div class="table-wrap"><table>
+<thead><tr>
+  <th>Test</th><th class="num">Max calls</th><th>Stop reason</th><th class="num">Host CPU at target</th><th class="num">Host RAM at target</th>
+  <th class="num">Asterisk CPU at target</th><th class="num">Setup avg / p95 / max</th><th class="num">MOS avg / min</th>
+  <th class="num">RTP received</th><th class="num">Calls started / answered / failed</th><th>Recording</th>
+</tr></thead>
+<tbody>
+{{range $r.Tests}}{{$res := .Result}}
+<tr>
+  <td class="test-name"><a href="#test-{{.ID}}">{{.ID}}</a><div class="hw-sub">{{testTitle .}}</div></td>
+  <td class="num">{{$res.MaxConcurrentCalls}}</td>
+  <td><span class="status {{stopClass $res.StopReason}}">{{stop $res.StopReason}}</span></td>
+  <td class="num">{{pct $res.AtTarget.HostCPUPct}}</td>
+  <td class="num">{{pct $res.AtTarget.HostMemPct}}</td>
+  <td class="num">{{range $g, $v := $res.AtTarget.AsteriskCPUPct}}<div>{{$g}} {{pct $v}}</div>{{end}}</td>
+  <td class="num">{{num $res.SetupMS.Avg}} / {{num $res.SetupMS.P95}} / {{num $res.SetupMS.Max}} ms</td>
+  <td class="num">{{num $res.MOS.Avg}} / {{num $res.MOS.Min}}</td>
+  <td class="num">{{with $res.RTPReceivedRatio}}{{printf "%.2f" (deref .)}}{{else}}–{{end}}</td>
+  <td class="num">{{$res.Calls.Started}} / {{$res.Calls.Answered}} / {{$res.Calls.Failed}}</td>
+  <td class="wide">{{with $res.Recording}}
+    {{with .RamdiskFullEstimatedAtCalls}}<div>RAM disk full at ~{{deref .}} calls (est.)</div>{{end}}
+    {{with .MP3ConversionDelayS}}<div>MP3 delay avg {{num .Avg}} s, p95 {{num .P95}} s, max {{num .Max}} s, {{.Trend}}</div>{{end}}
+  {{else}}<span class="muted">–</span>{{end}}
+  {{with $res.QualityDegradedAtCalls}}<div>Quality degraded at {{deref .}} calls</div>{{end}}</td>
+</tr>
+{{end}}
+</tbody></table></div>
+
+<div id="report-charts" data-src="/reports/{{$m.ID}}/json">
+{{range $r.Tests}}
+<section class="test-block" id="test-{{.ID}}" data-test="{{.ID}}">
+  <h2>{{.ID}} <span class="muted">· {{testTitle .}}</span></h2>
+  <p class="sub">{{tsStr .StartedAt}} to {{tsStr .FinishedAt}} · {{num .CallDurationS}} s calls · {{num .DialRateCPS}} calls/s · max {{.Result.MaxConcurrentCalls}} calls, <span class="status {{stopClass .Result.StopReason}}">{{stop .Result.StopReason}}</span></p>
+  <div class="charts"><p class="chart-empty">Loading charts…</p></div>
+</section>
+{{end}}
+</div>
+{{end}}

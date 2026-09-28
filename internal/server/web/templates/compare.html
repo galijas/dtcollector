@@ -1,0 +1,32 @@
+{{define "content"}}
+{{$d := .Data}}
+<h1>Compare {{len $d.Reports}} reports</h1>
+<p class="sub">Profile {{(index $d.Reports 0).Meta.Profile}}. <span class="muted">★ marks the best value in a row when the reports differ.</span></p>
+
+<div class="table-wrap"><table>
+<thead><tr><th></th>{{range $i, $c := $d.Reports}}<th><span class="key s{{add $i 1}}"></span>Report {{add $i 1}}</th>{{end}}</tr></thead>
+<tbody>
+  <tr><th>CPU</th>{{range $d.Reports}}<td><a href="/reports/{{.Meta.ID}}">{{if .Meta.CPUModel}}{{.Meta.CPUModel}}{{else}}Unknown CPU{{end}}</a></td>{{end}}</tr>
+  <tr><th>Cores / threads</th>{{range $d.Reports}}<td>{{if .Meta.CPUSockets}}{{.Meta.CPUSockets}} × {{end}}{{.Meta.CPUCores}} / {{.Meta.CPUThreads}}</td>{{end}}</tr>
+  <tr><th>Memory</th>{{range $d.Reports}}<td>{{gib .Meta.MemoryBytes}}</td>{{end}}</tr>
+  <tr><th>Disks</th>{{range $d.Reports}}<td>{{.Meta.Disks}}</td>{{end}}</tr>
+  <tr><th>SERVERware</th>{{range $d.Reports}}<td>{{.Meta.ServerwareVersion}} {{.Meta.ServerwareEdition}}</td>{{end}}</tr>
+  <tr><th>PBXware</th>{{range $d.Reports}}<td>{{.Meta.PBXware}}</td>{{end}}</tr>
+  <tr><th>Created</th>{{range $d.Reports}}<td class="nowrap">{{ts .Meta.CreatedAt}}</td>{{end}}</tr>
+  <tr><th>Source</th>{{range $d.Reports}}<td>{{.Meta.KeyName}}</td>{{end}}</tr>
+  <tr><th>Note</th>{{range $d.Reports}}<td>{{.Meta.Note}}</td>{{end}}</tr>
+</tbody></table></div>
+
+<div id="compare-charts" data-reports="{{range $i, $id := $d.IDs}}{{if $i}},{{end}}{{$id}}{{end}}">
+{{range $d.Tests}}
+<section class="test-block" id="test-{{.ID}}" data-test="{{.ID}}">
+  <h2>{{.ID}} <span class="muted">· {{.Title}}</span></h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th></th>{{range $i, $c := $d.Reports}}<th class="num"><span class="key s{{add $i 1}}"></span>Report {{add $i 1}}</th>{{end}}</tr></thead>
+    <tbody>{{range .Rows}}<tr><th>{{.Label}}</th>{{range .Cells}}<td class="num{{if .Best}} best{{end}}">{{.Text}}</td>{{end}}</tr>{{end}}</tbody>
+  </table></div>
+  <div class="charts"><p class="chart-empty">Loading charts…</p></div>
+</section>
+{{end}}
+</div>
+{{end}}

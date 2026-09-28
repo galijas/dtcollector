@@ -1,0 +1,34 @@
+{{define "content"}}
+<h1>Upload keys</h1>
+<p class="sub">SwarmDialer uses an upload key to send reports here. A key can only upload: it can't read, list or delete reports, and it can't log in to this interface. Create one key per site or network, so it can be revoked on its own.</p>
+{{with .Data.Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+{{with .Data.NewKey}}
+<div class="once" role="status">
+  <strong>Upload key "{{$.Data.NewName}}" created.</strong> Copy it now; it is not shown again.
+  <div class="secret"><code id="newkey">{{.}}</code><button type="button" data-copy="#newkey">Copy</button></div>
+  Enter it in SwarmDialer's Setup Wizard when you add the SERVERware site.
+</div>
+{{end}}
+<form class="card row" method="post" action="/keys">
+  <label>Name (site or network) <input type="text" name="name" maxlength="80" required placeholder="e.g. Bicom lab, Toronto"></label>
+  <button class="primary" type="submit">Create upload key</button>
+</form>
+<h2>Keys</h2>
+{{if .Data.Keys}}
+<div class="table-wrap"><table>
+<thead><tr><th>Name</th><th>Key</th><th>Created</th><th>Last used</th><th class="num">Reports</th><th>Status</th><th></th></tr></thead>
+<tbody>
+{{range .Data.Keys}}
+<tr>
+  <td>{{.Name}}</td>
+  <td class="mono">{{.Prefix}}…</td>
+  <td class="nowrap">{{ts .CreatedAt}} <span class="muted">by {{.CreatedBy}}</span></td>
+  <td class="nowrap">{{ts .LastUsedAt}}</td>
+  <td class="num">{{.Reports}}</td>
+  <td>{{if .Revoked}}<span class="status warn">Revoked {{ts .RevokedAt}}</span>{{else}}<span class="status ok">Active</span>{{end}}</td>
+  <td>{{if not .Revoked}}<form class="inline" method="post" action="/keys/{{.ID}}/revoke" data-confirm="Revoke upload key &quot;{{.Name}}&quot;? SwarmDialer instances using it will no longer be able to upload. This can't be undone."><button class="danger" type="submit">Revoke</button></form>{{end}}</td>
+</tr>
+{{end}}
+</tbody></table></div>
+{{else}}<p class="muted">No upload keys yet.</p>{{end}}
+{{end}}

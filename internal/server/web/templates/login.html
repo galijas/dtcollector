@@ -1,0 +1,12 @@
+{{define "content"}}
+<div class="login card">
+  <h1>DT Collector</h1>
+  <p class="sub">Log in with your admin account.</p>
+  {{with .Data}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
+  <form method="post" action="/login">
+    <label>Username <input type="text" name="username" autocomplete="username" required autofocus value="{{with .Data}}{{.Username}}{{end}}"></label>
+    <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Log in</button>
+  </form>
+</div>
+{{end}}

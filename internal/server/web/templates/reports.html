@@ -1,0 +1,68 @@
+{{define "content"}}
+{{$d := .Data}}
+<h1>Reports</h1>
+<p class="sub">Hardware test reports uploaded by SwarmDialer. Select two or more reports of the same profile version to compare them.</p>
+
+<form class="filters row" method="get" action="/">
+  <label>Profile
+    <select name="profile">
+      <option value="">All</option>
+      {{range $d.Opts.Profiles}}{{$v := printf "%s:%d" .Name .Version}}<option value="{{$v}}"{{if eq $v (index $d.Q "profile")}} selected{{end}}>{{.Name}} v{{.Version}} ({{.Count}})</option>{{end}}
+    </select>
+  </label>
+  <label>SERVERware
+    <select name="sw">
+      <option value="">All</option>
+      {{range $d.Opts.Serverware}}<option{{if eq . (index $d.Q "sw")}} selected{{end}}>{{.}}</option>{{end}}
+    </select>
+  </label>
+  <label>PBXware version <input type="text" name="pbx" size="10" value="{{index $d.Q "pbx"}}" placeholder="e.g. 8.2"></label>
+  <label>Source
+    <select name="key">
+      <option value="">All</option>
+      {{range $d.Keys}}{{$id := printf "%d" .ID}}<option value="{{$id}}"{{if eq $id (index $d.Q "key")}} selected{{end}}>{{.Name}}{{if .Revoked}} (revoked){{end}}</option>{{end}}
+    </select>
+  </label>
+  <label>From <input type="date" name="from" value="{{index $d.Q "from"}}"></label>
+  <label>To <input type="date" name="to" value="{{index $d.Q "to"}}"></label>
+  <label>Search <input type="search" name="q" value="{{index $d.Q "q"}}" placeholder="CPU, disk, note, source"></label>
+  <button type="submit">Filter</button>
+  {{if $d.Filtered}}<a class="button" href="/">Clear</a>{{end}}
+</form>
+
+{{if $d.Rows}}
+<form method="get" action="/compare" id="compare-form">
+<div class="selectbar">
+  <button class="primary" type="submit" id="compare-btn" disabled>Compare selected</button>
+  <span class="muted" id="compare-hint">Select 2 to 8 reports of the same profile version.</span>
+</div>
+<div class="table-wrap"><table>
+<thead><tr>
+  <th><span class="muted">Select</span></th><th>Created</th><th>Host hardware</th><th>SERVERware</th><th>PBXware</th>
+  <th>Profile</th><th>Max concurrent calls per test</th><th>Source</th><th>Note</th>
+</tr></thead>
+<tbody>
+{{range $d.Rows}}
+<tr>
+  <td><input type="checkbox" name="ids" value="{{.ID}}" data-profile="{{.Profile}}" aria-label="Select report {{.ID}}"></td>
+  <td class="nowrap"><a href="/reports/{{.ID}}">{{ts .CreatedAt}}</a></td>
+  <td>
+    <div class="hw">{{if .CPUModel}}{{.CPUModel}}{{else}}Unknown CPU{{end}}</div>
+    <div class="hw-sub">{{if .CPUSockets}}{{.CPUSockets}} × {{end}}{{.CPUCores}} cores / {{.CPUThreads}} threads · {{gib .MemoryBytes}} RAM{{if .Disks}} · {{.Disks}}{{end}}</div>
+  </td>
+  <td class="nowrap">{{.ServerwareVersion}}{{if .ServerwareEdition}} <span class="muted">{{.ServerwareEdition}}</span>{{end}}</td>
+  <td class="nowrap">{{.PBXware}}</td>
+  <td class="nowrap">{{.Profile}}</td>
+  <td><div class="chips">{{range .Results}}<span class="chip{{if ne .StopReason "target_reached"}} warn{{end}}" title="{{.ID}}: {{.MaxConcurrentCalls}} calls, {{stop .StopReason}}">{{.MaxConcurrentCalls}}</span>{{end}}</div></td>
+  <td>{{if .KeyName}}{{.KeyName}}{{else}}<span class="muted">deleted key</span>{{end}}</td>
+  <td>{{.Note}}</td>
+</tr>
+{{end}}
+</tbody></table></div>
+</form>
+{{if $d.Truncated}}<p class="muted">Showing the newest {{$d.Limit}} reports. Narrow the filters to see older ones.</p>{{end}}
+<p class="muted"><span class="chip warn">n</span> marks a test that stopped before reaching its target; hover it for the reason.</p>
+{{else}}
+<div class="card"><p>{{if $d.Filtered}}No reports match these filters.{{else}}No reports yet. Create an upload key and enter it in SwarmDialer's Setup Wizard; reports appear here when a test script completes.{{end}}</p></div>
+{{end}}
+{{end}}
