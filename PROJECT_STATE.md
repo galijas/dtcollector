@@ -55,7 +55,7 @@ Done:
   SwarmDialer can read from SERVERware's Prometheus; the server accepts
   them missing.
 - Not deployed yet: needs the DNS name and a server.
-- GitHub repo `galijas/dtcollector` to be created, then push `main`.
+- GitHub: `galijas/dtcollector`, `main` pushed 2026-09-28.
 
 ## Development notes
 
