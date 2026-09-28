@@ -122,8 +122,18 @@ if ! id "$APP" >/dev/null 2>&1; then
 fi
 install -d -m 700 -o "$APP" -g "$APP" "$DATA_DIR"
 
-# --- First admin account (first install only).
+# --- First admin account (first install only). Printed on exit however the
+# script ends, since it is shown only once.
 CREDS=""
+print_creds() {
+  [ -n "$CREDS" ] || return 0
+  echo
+  echo "$CREDS"
+  echo
+  log "save this password now; it is not shown again."
+  log "(new password later: sudo runuser -u $APP -- $BIN reset-password -data-dir $DATA_DIR -username <name>)"
+}
+trap print_creds EXIT
 if [ ! -f "$DATA_DIR/dtcollector.db" ]; then
   ADMIN_USER=admin
   ask ADMIN_USER "Username for the first admin account" "$ADMIN_USER"
@@ -208,19 +218,27 @@ systemctl restart $APP
 log "service $APP started (systemctl status $APP; journalctl -u $APP)"
 log "daily backups to $DATA_DIR/backups (last 14 kept; timer $APP-backup.timer)"
 
-# --- Firewall: only SSH, 80 and 443 in.
-if command -v ufw >/dev/null 2>&1 || apt-get install -y -qq ufw >/dev/null 2>&1; then
+# --- Firewall: only SSH, 80 and 443 in. Containers (a SERVERware VPS is
+# one) can't load the netfilter modules ufw needs; there the VPS firewall in
+# SERVERware does this job instead.
+echo
+if systemd-detect-virt --container --quiet 2>/dev/null; then
+  warn "this server is a container ($(systemd-detect-virt --container)); ufw can't run here."
+  echo "  Set the firewall in SERVERware for this VPS: allow TCP $(sshd -T 2>/dev/null | awk '$1=="port"{print $2}' | sort -u | tr '\n' ' ')80 443 inbound, deny the rest."
+elif command -v ufw >/dev/null 2>&1 || apt-get install -y -qq ufw >/dev/null 2>&1; then
   SSH_PORTS=$(sshd -T 2>/dev/null | awk '$1=="port"{print $2}' | sort -u | tr '\n' ' ')
   SSH_PORTS=${SSH_PORTS:-22}
-  echo
   if confirm "Configure the ufw firewall to allow only SSH (port ${SSH_PORTS% }), 80 and 443 inbound?" y; then
-    for p in $SSH_PORTS; do ufw allow "$p/tcp" >/dev/null; done
-    ufw allow 80/tcp >/dev/null
-    ufw allow 443/tcp >/dev/null
-    ufw default deny incoming >/dev/null
-    ufw default allow outgoing >/dev/null
-    ufw --force enable >/dev/null
-    log "ufw enabled: $(ufw status | grep -c ALLOW) allow rules (ufw status verbose)"
+    if { for p in $SSH_PORTS; do ufw allow "$p/tcp"; done
+         ufw allow 80/tcp && ufw allow 443/tcp &&
+         ufw default deny incoming && ufw default allow outgoing &&
+         ufw --force enable; } >/dev/null 2>&1; then
+      log "ufw enabled: $(ufw status | grep -c ALLOW) allow rules (ufw status verbose)"
+    else
+      ufw --force disable >/dev/null 2>&1 || true
+      warn "ufw could not be enabled on this system and has been disabled again."
+      echo "  Set the firewall elsewhere (hosting or SERVERware firewall): allow TCP ${SSH_PORTS}80 443 inbound, deny the rest."
+    fi
   else
     warn "firewall not configured; make sure only SSH, 80 and 443 are reachable"
   fi
@@ -242,10 +260,3 @@ else
   echo "  then look at: journalctl -u $APP -n 50"
 fi
 
-if [ -n "$CREDS" ]; then
-  echo
-  echo "$CREDS"
-  echo
-  log "save this password now; it is not shown again."
-  log "(new password later: sudo runuser -u $APP -- $BIN reset-password -data-dir $DATA_DIR -username <name>)"
-fi
