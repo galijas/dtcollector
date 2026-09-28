@@ -5,7 +5,9 @@ Read this first when continuing work. The original brief is
 
 ## Status (2026-09-28)
 
-First version built, tested locally, not yet deployed.
+First version deployed (2026-09-28) on a SERVERware VPS: HTTPS with the
+Let's Encrypt certificate works. The firewall is set in SERVERware (ufw
+can't run in the container).
 
 Done:
 - Upload API: `GET /api/v1/ping`, `POST /api/v1/reports` (gzip, 20 MB
@@ -54,7 +56,8 @@ Done:
 - The "(tbc)" host fields (CPU model, disks, disk type): confirm what
   SwarmDialer can read from SERVERware's Prometheus; the server accepts
   them missing.
-- Not deployed yet: needs the DNS name and a server.
+- SwarmDialer side not built yet: upload key entry in the Setup Wizard
+  (checked with `/api/v1/ping`), report building, upload with retries.
 - GitHub: `galijas/dtcollector`, `main` pushed 2026-09-28.
 
 ## Development notes
