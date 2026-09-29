@@ -140,7 +140,7 @@
 
     var unit = UNITS[def.unit];
     var build = function () {
-      var muted = cssVar('--muted'), grid = cssVar('--grid'), axis = cssVar('--axis');
+      var muted = cssVar('--muted'), grid = cssVar('--border'), axis = cssVar('--border');
       var series = [{ label: 'Elapsed', value: function (_, v) { return fmtElapsed(v); } }];
       ys.forEach(function (_, i) {
         var c = seriesColor(colorIdx[i]);
@@ -174,7 +174,7 @@
             values: function (_, vals) { return vals.map(unit.tick); }
           }
         ],
-        cursor: { y: false, points: { size: 8, width: 2, stroke: cssVar('--surface') } },
+        cursor: { y: false, points: { size: 8, width: 2, stroke: cssVar('--panel-alt') } },
         legend: { live: true }
       };
       return new uPlot(opts, [xs].concat(ys), plot);
@@ -287,8 +287,4 @@
     }, 150);
   });
 
-  // Colors are read from CSS at build time, so rebuild on a light/dark switch.
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
-    charts.forEach(function (c) { c.u.destroy(); c.u = c.build(); });
-  });
 })();

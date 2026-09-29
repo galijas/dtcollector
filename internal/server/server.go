@@ -64,6 +64,10 @@ func New(cfg Config) (*Server, error) {
 	ui := http.NewServeMux()
 	static, _ := fs.Sub(webFS, "web/static")
 	ui.Handle("GET /static/", http.StripPrefix("/static/", staticHandler(http.FileServerFS(static))))
+	ui.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		http.ServeFileFS(w, r, webFS, "web/static/icons/dtcollector-white-32.png")
+	})
 	ui.HandleFunc("GET /login", s.handleLoginPage)
 	ui.HandleFunc("POST /login", s.handleLogin)
 	ui.HandleFunc("POST /logout", s.handleLogout)
