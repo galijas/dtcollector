@@ -87,12 +87,19 @@ Done:
 
 ## Next session
 
-1. Admin creates upload keys in the web interface (one per site/network).
-2. Build SwarmDialer's side in `~/claude/SwarmDialer` against `docs/api.md`:
-   key entry and `/api/v1/ping` check in the Setup Wizard, report built
-   from an allowlist of fields, upload with retries, local copy kept.
-3. Settle the open items above while doing 2, and update `docs/api.md`
-   and the validation in `internal/report` together if anything changes.
+State at end of 2026-09-29: `main` = a44906b, deployed and live (backup
+taken before its DB migration: `backups/dtcollector-20260929-115405.db`).
+SwarmDialer's upload side is built (SwarmDialer v1.4/v1.5).
+
+Candidates, as the user decides:
+1. Build the hardware collection script (brief `~/claude/Project_HW_collect.md`);
+   DT Collector already accepts its format (`dtc-sample -script` shows it).
+2. Optional: match hardware-only entries with benchmark reports from the
+   same machine.
+3. Left for the user on the VPS (the auto-mode check blocked it): remove
+   the inert leftover ufw tables (`nft delete table ip filter`,
+   `nft delete table ip6 filter`, `ufw --force reset`). Recommended: change
+   the root password, which was shared in chat, or switch to SSH keys.
 
 ## Development notes
 
