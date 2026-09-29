@@ -83,12 +83,14 @@ func New(cfg Config) (*Server, error) {
 	ui.HandleFunc("POST /keys", s.admin(s.handleKeyCreate))
 	ui.HandleFunc("POST /keys/{id}/revoke", s.admin(s.handleKeyRevoke))
 
-	ui.HandleFunc("GET /admins", s.admin(s.handleAdmins))
-	ui.HandleFunc("POST /admins", s.admin(s.handleAdminCreate))
-	ui.HandleFunc("POST /admins/{id}/reset", s.admin(s.handleAdminReset))
-	ui.HandleFunc("POST /admins/{id}/delete", s.admin(s.handleAdminDelete))
-	ui.HandleFunc("GET /account", s.admin(s.handleAccount))
-	ui.HandleFunc("POST /account/password", s.admin(s.handlePasswordChange))
+	ui.HandleFunc("GET /accounts", s.admin(s.handleAccounts))
+	ui.HandleFunc("POST /accounts", s.admin(s.handleAdminCreate))
+	ui.HandleFunc("POST /accounts/{id}/reset", s.admin(s.handleAdminReset))
+	ui.HandleFunc("POST /accounts/{id}/delete", s.admin(s.handleAdminDelete))
+	ui.HandleFunc("POST /accounts/password", s.admin(s.handlePasswordChange))
+	for _, old := range []string{"GET /admins", "GET /account"} {
+		ui.Handle(old, http.RedirectHandler("/accounts", http.StatusMovedPermanently))
+	}
 
 	uiProtected := http.NewCrossOriginProtection().Handler(ui)
 

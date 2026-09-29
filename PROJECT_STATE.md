@@ -1,7 +1,8 @@
 # DT Collector: project state
 
-Read this first when continuing work. The original brief is
-`DTcollector_project.md`; the upload contract is `docs/api.md`.
+Read this first when continuing work. The project brief is
+`~/claude/DTcollector_project.md` (outside the repo; the single copy);
+the upload contract is `docs/api.md`.
 
 ## Status (2026-09-28)
 
@@ -9,6 +10,12 @@ Deployed at https://dtcollector.dtbicom.xyz/ (SERVERware VPS, KVM,
 SSH on port 2020). HTTPS with the Let's Encrypt certificate works.
 2026-09-29: UI restyled to match SwarmDialer (dark theme, centered header
 with the white DT Collector icon, tab navigation); deployed as bbfacd9.
+Then: tabs Reports / API (Upload) Keys / Accounts (Admins and Account
+merged), light/dark toggle like SwarmDialer's (black icons in light mode),
+hardware-only reports (profile `hardware`, `tests: []`, optional `source`
+instead of `swarmdialer_version`, empty `vps`/`pbxware` allowed),
+`target_not_reached` stop reason, new host fields shown, rejected uploads
+logged. DB migration 2 adds kind/source/system columns (backfilled).
 
 Done:
 - Upload API: `GET /api/v1/ping`, `POST /api/v1/reports` (gzip, 20 MB
@@ -57,8 +64,10 @@ Done:
 - The "(tbc)" host fields (CPU model, disks, disk type): confirm what
   SwarmDialer can read from SERVERware's Prometheus; the server accepts
   them missing.
-- SwarmDialer side not built yet: upload key entry in the Setup Wizard
-  (checked with `/api/v1/ping`), report building, upload with retries.
+- Matching hardware-only entries with benchmark reports from the same
+  machine (optional, not built).
+- The hardware collection script (`~/claude/Project_HW_collect.md`) is not
+  built yet; DT Collector accepts its format (see docs/api.md).
 - GitHub: `galijas/dtcollector`, `main` pushed 2026-09-28.
 
 ## Live system

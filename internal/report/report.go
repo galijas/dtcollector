@@ -13,14 +13,25 @@ import (
 
 const SchemaVersion = 1
 
+// HardwareProfile marks a hardware-only report: host inventory, no tests.
+const HardwareProfile = "hardware"
+
 type Report struct {
 	SchemaVersion      int         `json:"schema_version"`
 	ReportID           string      `json:"report_id"`
 	CreatedAt          string      `json:"created_at"`
 	SwarmDialerVersion string      `json:"swarmdialer_version"`
+	Source             *Source     `json:"source,omitempty"`
 	Profile            Profile     `json:"profile"`
 	Environment        Environment `json:"environment"`
 	Tests              []Test      `json:"tests"`
+}
+
+// Source names the uploading tool when it isn't SwarmDialer (e.g. the
+// hw-collect script); SwarmDialer reports use swarmdialer_version instead.
+type Source struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
 type Profile struct {
@@ -49,6 +60,40 @@ type Host struct {
 	MemoryBytes int64   `json:"memory_bytes"`
 	Disks       []Disk  `json:"disks"`
 	Network     []NIC   `json:"network"`
+
+	SystemVendor       string       `json:"system_vendor,omitempty"`
+	SystemModel        string       `json:"system_model,omitempty"`
+	StorageControllers []Controller `json:"storage_controllers,omitempty"`
+	NICs               []NICModel   `json:"nics,omitempty"`
+	Bonds              []Bond       `json:"bonds,omitempty"`
+	Motherboard        *Motherboard `json:"motherboard,omitempty"`
+}
+
+type Controller struct {
+	Vendor  string `json:"vendor"`
+	Product string `json:"product"`
+	Count   int    `json:"count"`
+}
+
+type NICModel struct {
+	Vendor    string  `json:"vendor"`
+	Product   string  `json:"product"`
+	Driver    string  `json:"driver"`
+	Count     int     `json:"count"`
+	SpeedMbps float64 `json:"speed_mbps"`
+}
+
+type Bond struct {
+	Ports int `json:"ports"`
+}
+
+type Motherboard struct {
+	Vendor      string `json:"vendor"`
+	Model       string `json:"model"`
+	Version     string `json:"version,omitempty"`
+	BIOSVendor  string `json:"bios_vendor,omitempty"`
+	BIOSVersion string `json:"bios_version,omitempty"`
+	BIOSDate    string `json:"bios_date,omitempty"`
 }
 
 type Disk struct {
@@ -163,7 +208,7 @@ var (
 	recordings  = []string{"off", "mono", "stereo"}
 	swEditions  = []string{"standalone", "mirror", "cluster"}
 	trends      = []string{"stable", "growing"}
-	stopReasons = []string{"target_reached", "host_cpu_100", "host_ram_100", "vps_cpu_limit",
+	stopReasons = []string{"target_reached", "target_not_reached", "host_cpu_100", "host_ram_100", "vps_cpu_limit",
 		"vps_ram_limit", "swarmdialer_overloaded", "error"}
 )
 
@@ -220,8 +265,18 @@ func (r *Report) Validate() error {
 	if _, err := parseTime(r.CreatedAt); err != nil {
 		return fail("created_at", "must be an RFC 3339 timestamp")
 	}
-	if strings.TrimSpace(r.SwarmDialerVersion) == "" || len(r.SwarmDialerVersion) > 64 {
-		return fail("swarmdialer_version", "required (max 64 characters)")
+	if r.Source != nil {
+		if !identRe.MatchString(r.Source.Name) {
+			return fail("source.name", "required: 1-64 characters of letters, digits, '.', '_' or '-'")
+		}
+		if strings.TrimSpace(r.Source.Version) == "" || len(r.Source.Version) > 64 {
+			return fail("source.version", "required (max 64 characters)")
+		}
+	} else if strings.TrimSpace(r.SwarmDialerVersion) == "" {
+		return fail("swarmdialer_version", "required unless source is given")
+	}
+	if len(r.SwarmDialerVersion) > 64 {
+		return fail("swarmdialer_version", "max 64 characters")
 	}
 	if !identRe.MatchString(r.Profile.Name) {
 		return fail("profile.name", "required: 1-64 characters of letters, digits, '.', '_' or '-'")
@@ -232,8 +287,17 @@ func (r *Report) Validate() error {
 	if err := r.Environment.validate(); err != nil {
 		return err
 	}
+	if r.IsHardware() {
+		if len(r.Tests) > 0 {
+			return fail("tests", "must be empty for profile %q", HardwareProfile)
+		}
+		if strings.TrimSpace(r.Environment.Host.CPUModel) == "" {
+			return fail("environment.host.cpu_model", "required for profile %q", HardwareProfile)
+		}
+		return nil
+	}
 	if len(r.Tests) == 0 {
-		return fail("tests", "at least one test is required")
+		return fail("tests", "at least one test is required (an empty list is only allowed for profile %q)", HardwareProfile)
 	}
 	if len(r.Tests) > maxTests {
 		return fail("tests", "at most %d tests allowed", maxTests)
@@ -251,6 +315,23 @@ func (r *Report) Validate() error {
 	return nil
 }
 
+func (r *Report) IsHardware() bool { return r.Profile.Name == HardwareProfile }
+
+// SourceName and SourceVersion identify the uploading tool.
+func (r *Report) SourceName() string {
+	if r.Source != nil {
+		return r.Source.Name
+	}
+	return "swarmdialer"
+}
+
+func (r *Report) SourceVersion() string {
+	if r.Source != nil {
+		return r.Source.Version
+	}
+	return r.SwarmDialerVersion
+}
+
 func (e *Environment) validate() error {
 	if strings.TrimSpace(e.Serverware.Version) == "" {
 		return fail("environment.serverware.version", "required")
@@ -262,8 +343,18 @@ func (e *Environment) validate() error {
 	if h.CPUSockets < 0 || h.CPUCores < 0 || h.CPUThreads < 0 || h.CPUMaxMHz < 0 || h.MemoryBytes < 0 {
 		return fail("environment.host", "numeric values must not be negative")
 	}
-	if len(h.Disks) > 256 || len(h.Network) > 256 {
-		return fail("environment.host", "too many disks or network interfaces")
+	if len(h.Disks) > 256 || len(h.Network) > 256 || len(h.StorageControllers) > 256 || len(h.NICs) > 256 || len(h.Bonds) > 256 {
+		return fail("environment.host", "too many disks, network interfaces, controllers, NICs or bonds")
+	}
+	for i, c := range h.StorageControllers {
+		if c.Count < 0 {
+			return fail(fmt.Sprintf("environment.host.storage_controllers[%d].count", i), "must not be negative")
+		}
+	}
+	for i, n := range h.NICs {
+		if n.Count < 0 || n.SpeedMbps < 0 {
+			return fail(fmt.Sprintf("environment.host.nics[%d]", i), "count and speed_mbps must not be negative")
+		}
 	}
 	for i, p := range e.PBXware {
 		if strings.TrimSpace(p.Role) == "" {

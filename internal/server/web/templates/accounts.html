@@ -1,0 +1,45 @@
+{{define "content"}}
+<h1>Accounts</h1>
+<p class="sub">Admin accounts for this interface. Every admin can browse and compare reports, manage API keys and manage admin accounts.</p>
+{{with .Data.Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+{{with .Data.NewPassword}}
+<div class="once" role="status">
+  <strong>{{if $.Data.Reset}}New password for{{else}}Admin account created:{{end}} {{$.Data.NewUser}}.</strong> Copy the password now; it is not shown again. They can change it in this tab after logging in.
+  <div class="secret"><code id="newpw">{{.}}</code><button type="button" data-copy="#newpw">Copy</button></div>
+</div>
+{{end}}
+
+<h2>Change password</h2>
+<p class="sub">Your account: <strong>{{.Admin.Username}}</strong>. Changing your password logs you out everywhere.</p>
+{{with .Data.PWError}}<p class="error" role="alert">{{.}}</p>{{end}}
+<form class="card stack" method="post" action="/accounts/password">
+  <label>Current password <input type="password" name="current" autocomplete="current-password" required></label>
+  <label>New password (12 to 72 characters) <input type="password" name="password" autocomplete="new-password" minlength="12" maxlength="72" required></label>
+  <label>Repeat new password <input type="password" name="confirm" autocomplete="new-password" minlength="12" maxlength="72" required></label>
+  <div><button class="primary" type="submit">Change password</button></div>
+</form>
+
+<h2>Create admin account</h2>
+<form class="card row" method="post" action="/accounts">
+  <label>Username <input type="text" name="username" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{1,31}" required></label>
+  <button class="primary" type="submit">Create admin</button>
+  <span class="muted">A random password is generated and shown once.</span>
+</form>
+
+<h2>Admin accounts</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Username</th><th>Created</th><th>Last login</th><th></th></tr></thead>
+<tbody>
+{{range .Data.Admins}}
+<tr>
+  <td>{{.Username}}{{if eq .ID $.Admin.ID}} <span class="muted">(you)</span>{{end}}</td>
+  <td class="nowrap">{{ts .CreatedAt}}</td>
+  <td class="nowrap">{{ts .LastLoginAt}}</td>
+  <td class="nowrap">{{if ne .ID $.Admin.ID}}
+    <form class="inline" method="post" action="/accounts/{{.ID}}/reset" data-confirm="Reset the password of {{.Username}}? Their current sessions end."><button type="submit">Reset password</button></form>
+    <form class="inline" method="post" action="/accounts/{{.ID}}/delete" data-confirm="Delete admin account {{.Username}}?"><button class="danger" type="submit">Delete</button></form>
+  {{end}}</td>
+</tr>
+{{end}}
+</tbody></table></div>
+{{end}}

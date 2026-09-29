@@ -26,12 +26,16 @@
     var defaultHint = hint.textContent;
     compareForm.addEventListener('change', function () {
       var checked = compareForm.querySelectorAll('input[name=ids]:checked');
-      var profiles = {};
-      checked.forEach(function (c) { profiles[c.getAttribute('data-profile')] = true; });
+      var profiles = {}, hardware = false;
+      checked.forEach(function (c) {
+        profiles[c.getAttribute('data-profile')] = true;
+        if (c.getAttribute('data-kind') === 'hardware') hardware = true;
+      });
       var nProfiles = Object.keys(profiles).length;
-      var ok = checked.length >= 2 && checked.length <= 8 && nProfiles === 1;
+      var ok = checked.length >= 2 && checked.length <= 8 && nProfiles === 1 && !hardware;
       btn.disabled = !ok;
-      if (nProfiles > 1) hint.textContent = 'The selection mixes profile versions (' + Object.keys(profiles).join(', ') + '); compare within one.';
+      if (hardware) hint.textContent = 'Hardware-only reports have no test results to compare; select benchmark reports.';
+      else if (nProfiles > 1) hint.textContent = 'The selection mixes profile versions (' + Object.keys(profiles).join(', ') + '); compare within one.';
       else if (checked.length > 8) hint.textContent = 'Select at most 8 reports.';
       else if (checked.length) hint.textContent = checked.length + ' selected.';
       else hint.textContent = defaultHint;
@@ -278,6 +282,11 @@
     Promise.all(ids.map(function (id) { return fetchJSON('/reports/' + encodeURIComponent(id) + '/json'); }))
       .then(renderCompare).catch(function (e) { fail(compareEl, e.message); });
   }
+
+  // Colors are read from CSS when a chart is built, so rebuild on a theme switch.
+  document.addEventListener('themechange', function () {
+    charts.forEach(function (c) { c.u.destroy(); c.u = c.build(); });
+  });
 
   var resizeTimer;
   window.addEventListener('resize', function () {

@@ -15,6 +15,11 @@ type Summary struct {
 	ProfileName        string
 	ProfileVersion     int
 	SwarmDialerVersion string
+	Kind               string // "benchmark" or "hardware"
+	SourceName         string
+	SourceVersion      string
+	SystemVendor       string
+	SystemModel        string
 	ServerwareVersion  string
 	ServerwareEdition  string
 	CPUModel           string
@@ -43,6 +48,11 @@ func (r *Report) Summary() Summary {
 		ProfileName:        r.Profile.Name,
 		ProfileVersion:     r.Profile.Version,
 		SwarmDialerVersion: r.SwarmDialerVersion,
+		Kind:               r.Kind(),
+		SourceName:         r.SourceName(),
+		SourceVersion:      r.SourceVersion(),
+		SystemVendor:       h.SystemVendor,
+		SystemModel:        h.SystemModel,
 		ServerwareVersion:  r.Environment.Serverware.Version,
 		ServerwareEdition:  r.Environment.Serverware.Edition,
 		CPUModel:           h.CPUModel,
@@ -58,6 +68,18 @@ func (r *Report) Summary() Summary {
 		s.Results = append(s.Results, TestResult{t.ID, t.Result.MaxConcurrentCalls, t.Result.StopReason})
 	}
 	return s
+}
+
+const (
+	KindBenchmark = "benchmark"
+	KindHardware  = "hardware"
+)
+
+func (r *Report) Kind() string {
+	if r.IsHardware() {
+		return KindHardware
+	}
+	return KindBenchmark
 }
 
 // DiskSummary groups identical disks: "2x 960 GB nvme SAMSUNG MZQL2960".

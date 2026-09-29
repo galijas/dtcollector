@@ -1,9 +1,16 @@
 {{define "content"}}
 {{$d := .Data}}
 <h1>Reports</h1>
-<p class="sub">Hardware test reports uploaded by SwarmDialer. Select two or more reports of the same profile version to compare them.</p>
+<p class="sub">Benchmark reports from SwarmDialer, and hardware-only reports (host inventory, no tests) from SwarmDialer or the hardware collection script. Select two or more benchmark reports of the same profile version to compare them.</p>
 
 <form class="filters row" method="get" action="/">
+  <label>Type
+    <select name="kind">
+      <option value="">All</option>
+      <option value="benchmark"{{if eq (index $d.Q "kind") "benchmark"}} selected{{end}}>Benchmark</option>
+      <option value="hardware"{{if eq (index $d.Q "kind") "hardware"}} selected{{end}}>Hardware only</option>
+    </select>
+  </label>
   <label>Profile
     <select name="profile">
       <option value="">All</option>
@@ -25,7 +32,7 @@
   </label>
   <label>From <input type="date" name="from" value="{{index $d.Q "from"}}"></label>
   <label>To <input type="date" name="to" value="{{index $d.Q "to"}}"></label>
-  <label>Search <input type="search" name="q" value="{{index $d.Q "q"}}" placeholder="CPU, disk, note, source"></label>
+  <label>Search <input type="search" name="q" value="{{index $d.Q "q"}}" placeholder="CPU, system, disk, note, source"></label>
   <button type="submit">Filter</button>
   {{if $d.Filtered}}<a class="button" href="/">Clear</a>{{end}}
 </form>
@@ -34,7 +41,7 @@
 <form method="get" action="/compare" id="compare-form">
 <div class="selectbar">
   <button class="primary" type="submit" id="compare-btn" disabled>Compare selected</button>
-  <span class="muted" id="compare-hint">Select 2 to 8 reports of the same profile version.</span>
+  <span class="muted" id="compare-hint">Select 2 to 8 benchmark reports of the same profile version.</span>
 </div>
 <div class="table-wrap"><table>
 <thead><tr>
@@ -44,17 +51,18 @@
 <tbody>
 {{range $d.Rows}}
 <tr>
-  <td><input type="checkbox" name="ids" value="{{.ID}}" data-profile="{{.Profile}}" aria-label="Select report {{.ID}}"></td>
+  <td><input type="checkbox" name="ids" value="{{.ID}}" data-profile="{{.Profile}}" data-kind="{{.Kind}}" aria-label="Select report {{.ID}}"></td>
   <td class="nowrap"><a href="/reports/{{.ID}}">{{ts .CreatedAt}}</a></td>
   <td>
     <div class="hw">{{if .CPUModel}}{{.CPUModel}}{{else}}Unknown CPU{{end}}</div>
+    {{with .System}}<div class="hw-sub">{{.}}</div>{{end}}
     <div class="hw-sub">{{if .CPUSockets}}{{.CPUSockets}} × {{end}}{{.CPUCores}} cores / {{.CPUThreads}} threads · {{gib .MemoryBytes}} RAM{{if .Disks}} · {{.Disks}}{{end}}</div>
   </td>
   <td class="nowrap">{{.ServerwareVersion}}{{if .ServerwareEdition}} <span class="muted">{{.ServerwareEdition}}</span>{{end}}</td>
   <td class="nowrap">{{.PBXware}}</td>
   <td class="nowrap">{{.Profile}}</td>
-  <td><div class="chips">{{range .Results}}<span class="chip{{if ne .StopReason "target_reached"}} warn{{end}}" title="{{.ID}}: {{.MaxConcurrentCalls}} calls, {{stop .StopReason}}">{{.MaxConcurrentCalls}}</span>{{end}}</div></td>
-  <td>{{if .KeyName}}{{.KeyName}}{{else}}<span class="muted">deleted key</span>{{end}}</td>
+  <td>{{if .IsHardware}}<span class="chip hw">Hardware only</span>{{else}}<div class="chips">{{range .Results}}<span class="chip{{if ne .StopReason "target_reached"}} warn{{end}}" title="{{.ID}}: {{.MaxConcurrentCalls}} calls, {{stop .StopReason}}">{{.MaxConcurrentCalls}}</span>{{end}}</div>{{end}}</td>
+  <td>{{if .KeyName}}{{.KeyName}}{{else}}<span class="muted">deleted key</span>{{end}}<div class="hw-sub">{{.SourceLabel}}</div></td>
   <td>{{.Note}}</td>
 </tr>
 {{end}}
@@ -63,6 +71,6 @@
 {{if $d.Truncated}}<p class="muted">Showing the newest {{$d.Limit}} reports. Narrow the filters to see older ones.</p>{{end}}
 <p class="muted"><span class="chip warn">n</span> marks a test that stopped before reaching its target; hover it for the reason.</p>
 {{else}}
-<div class="card"><p>{{if $d.Filtered}}No reports match these filters.{{else}}No reports yet. Create an upload key and enter it in SwarmDialer's Setup Wizard; reports appear here when a test script completes.{{end}}</p></div>
+<div class="card"><p>{{if $d.Filtered}}No reports match these filters.{{else}}No reports yet. Create an API key and enter it in SwarmDialer's Setup Wizard (or pass it to the hardware collection script); reports appear here when they are uploaded.{{end}}</p></div>
 {{end}}
 {{end}}

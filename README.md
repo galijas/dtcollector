@@ -1,17 +1,20 @@
 # DT Collector
 
-DT Collector is the central server for SwarmDialer hardware test reports.
-When a SwarmDialer instance finishes its standardized load test against a
-SERVERware host, it uploads one report here. Admins can then browse the
-reports, look at each test's results and time series, and compare hosts
-side by side.
+DT Collector is the central server for SERVERware host reports. When a
+SwarmDialer instance finishes its standardized load test against a
+SERVERware host, it uploads a benchmark report here. SwarmDialer and the
+hardware collection script can also upload hardware-only reports (the
+host's hardware inventory, no tests). Admins browse the reports, look at
+each test's results and time series, and compare hosts side by side.
 
-- **Upload API** (`/api/v1`): used only by SwarmDialer, authenticated with
-  upload keys. A key can only upload; it can't read, list or delete
-  anything, and it can't log in to the web interface. See
+- **Upload API** (`/api/v1`): used by SwarmDialer and the hardware
+  collection script, authenticated with API (upload) keys. A key can only
+  upload; it can't read, list or delete anything, and it can't log in to
+  the web interface. See
   [docs/api.md](docs/api.md) for the contract.
 - **Web interface**: local admin accounts (bcrypt-hashed passwords). Admins
-  browse and compare reports and manage upload keys and admin accounts.
+  browse and compare reports and manage API keys and admin accounts. A
+  light/dark theme toggle (remembered per browser) sits in the header.
 
 It is a single Go binary with the web interface embedded, SQLite for
 storage, and a Let's Encrypt certificate obtained and renewed by the binary
@@ -49,8 +52,9 @@ The install script:
 6. enables a daily database backup timer,
 7. makes the first HTTPS request, which is when the certificate is issued.
 
-Then open `https://<dns-name>/`, log in, and create an upload key under
-**Upload keys** for each site or network that runs SwarmDialer. Enter that
+Then open `https://<dns-name>/`, log in, and create an API key under
+**API (Upload) Keys** for each site or network that runs SwarmDialer (or
+the hardware collection script). Enter that
 key in SwarmDialer's Setup Wizard when adding the SERVERware site.
 
 ## Upgrade
@@ -101,7 +105,7 @@ sudo systemctl start dtcollector
 |---|---|
 | `/usr/local/bin/dtcollector` | The binary |
 | `/etc/dtcollector/dtcollector.env` | DNS name and Let's Encrypt email |
-| `/var/lib/dtcollector/dtcollector.db` | Database: reports, admins, sessions, hashed upload keys |
+| `/var/lib/dtcollector/dtcollector.db` | Database: reports, admins, sessions, hashed API keys |
 | `/var/lib/dtcollector/autocert/` | Let's Encrypt account key and certificates |
 | `/var/lib/dtcollector/backups/` | Daily database backups |
 | `/etc/systemd/system/dtcollector*.{service,timer}` | Service and backup units |
@@ -114,7 +118,7 @@ sudo systemctl start dtcollector
   to 10 per 15 minutes per client address. Sessions last 12 hours, use
   `__Host-` cookies (`Secure`, `HttpOnly`, `SameSite=Strict`) and end when
   the password changes. Cross-origin form posts are rejected.
-- Upload keys are 43 random characters, stored as SHA-256 hashes, shown
+- API (upload) keys are 43 random characters, stored as SHA-256 hashes, shown
   once, revocable individually, with "last used" shown.
 - The service runs as its own unprivileged user under a sandboxed systemd
   unit. The installer doesn't configure a firewall: restrict inbound
@@ -133,13 +137,15 @@ go build -o bin/dtcollector ./cmd/dtcollector
 ./bin/dtcollector serve -dev-addr 127.0.0.1:8080 -data-dir ./data
 ```
 
-Log in at `http://127.0.0.1:8080/`, create an upload key, then load a few
+Log in at `http://127.0.0.1:8080/`, create an API key, then load a few
 synthetic reports:
 
 ```bash
 go run ./cmd/dtc-sample -host 0 -upload http://127.0.0.1:8080 -key dtk_...
 go run ./cmd/dtc-sample -host 1 -upload http://127.0.0.1:8080 -key dtk_...
 go run ./cmd/dtc-sample -host 2 > example-report.json   # print instead
+go run ./cmd/dtc-sample -hardware -upload http://127.0.0.1:8080 -key dtk_...   # SwarmDialer hardware-only report
+go run ./cmd/dtc-sample -script -upload http://127.0.0.1:8080 -key dtk_...     # hardware collection script report
 ```
 
 Layout:
@@ -150,5 +156,5 @@ Layout:
 | `cmd/dtc-sample` | Synthetic report generator and uploader |
 | `internal/report` | Report format v1, validation, summaries, sample generator |
 | `internal/store` | SQLite schema and queries |
-| `internal/auth` | Password hashing, upload keys, session tokens |
+| `internal/auth` | Password hashing, API keys, session tokens |
 | `internal/server` | Upload API, admin sessions, web pages; `web/` holds templates and static files (uPlot for charts) |

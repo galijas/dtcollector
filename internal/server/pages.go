@@ -35,7 +35,7 @@ type pageData struct {
 var flashes = map[string]string{
 	"note":         "Note saved.",
 	"deleted":      "Report deleted.",
-	"revoked":      "Upload key revoked. SwarmDialer instances using it can no longer upload.",
+	"revoked":      "API key revoked. Anything using it can no longer upload.",
 	"admindeleted": "Admin account deleted.",
 	"pwchanged":    "Password changed. Log in with the new password.",
 }
@@ -145,7 +145,7 @@ func (s *Server) loadTemplates() error {
 	})
 	s.assetVer = hex.EncodeToString(h.Sum(nil))[:10]
 	s.pages = map[string]*template.Template{}
-	for _, p := range []string{"login.html", "reports.html", "report.html", "compare.html", "keys.html", "admins.html", "account.html", "error.html"} {
+	for _, p := range []string{"login.html", "reports.html", "report.html", "compare.html", "keys.html", "accounts.html", "error.html"} {
 		t, err := template.New("").Funcs(funcs).ParseFS(webFS, "web/templates/base.html", "web/templates/"+p)
 		if err != nil {
 			return fmt.Errorf("template %s: %w", p, err)
@@ -193,13 +193,16 @@ type reportsData struct {
 func (s *Server) handleReports(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	d := reportsData{Q: map[string]string{}, Limit: 500}
-	for _, k := range []string{"profile", "sw", "pbx", "key", "q", "from", "to"} {
+	for _, k := range []string{"kind", "profile", "sw", "pbx", "key", "q", "from", "to"} {
 		d.Q[k] = strings.TrimSpace(q.Get(k))
 		if d.Q[k] != "" {
 			d.Filtered = true
 		}
 	}
 	f := store.ReportFilter{Serverware: d.Q["sw"], PBXware: d.Q["pbx"], Text: d.Q["q"], Limit: d.Limit + 1}
+	if k := d.Q["kind"]; k == report.KindBenchmark || k == report.KindHardware {
+		f.Kind = k
+	}
 	if p := d.Q["profile"]; p != "" {
 		name, ver, _ := strings.Cut(p, ":")
 		f.ProfileName = name
@@ -350,7 +353,7 @@ func (s *Server) renderKeys(w http.ResponseWriter, r *http.Request, code int, d 
 		return
 	}
 	d.Keys = keys
-	s.render(w, r, code, "keys.html", "Upload keys", d)
+	s.render(w, r, code, "keys.html", "API (Upload) Keys", d)
 }
 
 func (s *Server) handleKeys(w http.ResponseWriter, r *http.Request) {
@@ -360,7 +363,7 @@ func (s *Server) handleKeys(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleKeyCreate(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.PostFormValue("name"))
 	if name == "" || len([]rune(name)) > 80 {
-		s.renderKeys(w, r, http.StatusBadRequest, keysData{Error: "Give the key a name of 1 to 80 characters (for example the site or network it is for)."})
+		s.renderKeys(w, r, http.StatusBadRequest, keysData{Error: "Give the API key a name of 1 to 80 characters (for example the site or network it is for)."})
 		return
 	}
 	key, prefix, hash := auth.NewUploadKey()
@@ -368,7 +371,7 @@ func (s *Server) handleKeyCreate(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, "create key", err)
 		return
 	}
-	s.log.Printf("upload key %q (%s…) created by %q", name, prefix, adminFrom(r).Username)
+	s.log.Printf("API key %q (%s…) created by %q", name, prefix, adminFrom(r).Username)
 	s.renderKeys(w, r, http.StatusOK, keysData{NewKey: key, NewName: name})
 }
 
@@ -376,13 +379,13 @@ func (s *Server) handleKeyRevoke(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err := s.st.RevokeUploadKey(id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			s.errorPage(w, r, http.StatusNotFound, "No active upload key with that ID.")
+			s.errorPage(w, r, http.StatusNotFound, "No active API key with that ID.")
 			return
 		}
 		s.internalError(w, r, "revoke key", err)
 		return
 	}
-	s.log.Printf("upload key %d revoked by %q", id, adminFrom(r).Username)
+	s.log.Printf("API key %d revoked by %q", id, adminFrom(r).Username)
 	http.Redirect(w, r, "/keys?m=revoked", http.StatusSeeOther)
 }
 
@@ -396,6 +399,7 @@ type adminsData struct {
 	NewPassword string
 	Reset       bool
 	Error       string
+	PWError     string
 }
 
 func (s *Server) renderAdmins(w http.ResponseWriter, r *http.Request, code int, d adminsData) {
@@ -405,10 +409,10 @@ func (s *Server) renderAdmins(w http.ResponseWriter, r *http.Request, code int, 
 		return
 	}
 	d.Admins = admins
-	s.render(w, r, code, "admins.html", "Admin accounts", d)
+	s.render(w, r, code, "accounts.html", "Accounts", d)
 }
 
-func (s *Server) handleAdmins(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 	s.renderAdmins(w, r, http.StatusOK, adminsData{})
 }
 
@@ -440,7 +444,7 @@ func (s *Server) handleAdminReset(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	me := adminFrom(r)
 	if id == me.ID {
-		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{Error: "Change your own password on the Account page."})
+		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{Error: "Change your own password in the Change password section above."})
 		return
 	}
 	target, err := s.st.AdminByID(id)
@@ -485,18 +489,14 @@ func (s *Server) handleAdminDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.log.Printf("admin %d deleted by %q", id, me.Username)
-	http.Redirect(w, r, "/admins?m=admindeleted", http.StatusSeeOther)
-}
-
-func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, http.StatusOK, "account.html", "Account", nil)
+	http.Redirect(w, r, "/accounts?m=admindeleted", http.StatusSeeOther)
 }
 
 func (s *Server) handlePasswordChange(w http.ResponseWriter, r *http.Request) {
 	me := adminFrom(r)
 	cur, pw, confirm := r.PostFormValue("current"), r.PostFormValue("password"), r.PostFormValue("confirm")
 	fail := func(msg string) {
-		s.render(w, r, http.StatusBadRequest, "account.html", "Account", map[string]string{"Error": msg})
+		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{PWError: msg})
 	}
 	if !auth.CheckPassword(me.PasswordHash, cur) {
 		fail("The current password is wrong.")

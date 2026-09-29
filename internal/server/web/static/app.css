@@ -1,7 +1,8 @@
-/* Dark console theme shared with SwarmDialer (cmd/gui/web/style.css there):
-   same background, panel, border, text and accent values, centered header
-   with the white logo and tab buttons below it. Chart series use the
-   validated dark categorical palette, checked against --panel-alt. */
+/* Theme shared with SwarmDialer (cmd/gui/web/style.css there): the same
+   dark and light token values, centered header with the logo and tab
+   buttons below it, and the round theme toggle at the top right. Chart
+   series are validated categorical palettes, each checked against its
+   mode's chart surface (--panel-alt). */
 :root {
   color-scheme: dark;
   --bg: #0b0d12;
@@ -17,6 +18,8 @@
   --ok: #3ddc97;
   --danger: #ff5470;
   --best-bg: rgba(61, 220, 151, 0.12);
+  --disabled-bg: #3a3f4d;
+  --console-bg: #05060a;
   --radius: 4px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -29,6 +32,35 @@
   --series-7: #9085e9;
   --series-8: #e66767;
 }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eef0f4;
+  --panel: #ffffff;
+  --panel-alt: #f1f3f6;
+  --border: #d5dae3;
+  --text: #151922;
+  --muted: #586174;
+  --accent: #b36b00;
+  --accent-hover: #cc7a00;
+  --accent-ink: #ffffff;
+  --link: #1f6fd1;
+  --ok: #13875a;
+  --danger: #d42f4a;
+  --best-bg: rgba(19, 135, 90, 0.12);
+  --disabled-bg: #d5dae3;
+  --console-bg: #f7f8fa;
+  --series-1: #2a78d6;
+  --series-2: #c94f1f;
+  --series-3: #128a60;
+  --series-4: #a86f00;
+  --series-5: #c2457a;
+  --series-6: #007a00;
+  --series-7: #4a3aa7;
+  --series-8: #d63c3b;
+}
+.icon-light { display: none; }
+:root[data-theme="light"] .icon-light { display: inline; }
+:root[data-theme="light"] .icon-dark { display: none; }
 
 * { box-sizing: border-box; }
 body {
@@ -50,6 +82,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 
 /* ---- header: same placement as SwarmDialer ---- */
 header {
+  position: relative;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   padding: 16px 24px 12px;
@@ -61,6 +94,15 @@ header {
 .brand { display: flex; align-items: center; gap: 14px; color: var(--text); text-decoration: none; }
 .brand-icon { height: 52px; width: auto; }
 header h1 { font-family: var(--mono); font-size: 34px; font-weight: 600; letter-spacing: 0.01em; margin: 0; color: var(--text); }
+.theme-toggle {
+  position: absolute; top: 14px; right: 18px;
+  width: 36px; height: 36px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--panel-alt); color: var(--text);
+  font-size: 17px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; align-items: center; }
 nav.tabs a, nav.tabs button {
   font: inherit; font-size: 14px; border: 1px solid transparent; background: transparent;
@@ -82,13 +124,13 @@ footer { padding: 1rem 1.5rem 2rem; color: var(--muted); font-size: 12px; text-a
 .once { border-color: var(--accent); padding: 0.9rem 1rem; margin: 1rem 0; }
 .once .secret { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 0.5rem 0; }
 .once .secret code {
-  background: #05060a; border: 1px solid var(--border); padding: 0.4rem 0.6rem; border-radius: var(--radius);
+  background: var(--console-bg); border: 1px solid var(--border); padding: 0.4rem 0.6rem; border-radius: var(--radius);
   font-size: 15px; user-select: all; word-break: break-all;
 }
 
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; }
 .row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
-.spread { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.spread { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
 
 label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 input[type=text], input[type=password], input[type=date], input[type=search], select, textarea {
@@ -106,7 +148,7 @@ button, .button {
 button:hover, .button:hover { border-color: var(--accent); color: var(--accent); }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-ink); }
-button.primary:disabled { background: #3a3f4d; border-color: #3a3f4d; color: var(--muted); cursor: not-allowed; }
+button.primary:disabled { background: var(--disabled-bg); border-color: var(--disabled-bg); color: var(--muted); cursor: not-allowed; }
 button.danger { color: var(--danger); }
 button.danger:hover { border-color: var(--danger); color: var(--danger); }
 button:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -140,8 +182,9 @@ table.kv tbody tr:hover td { background: none; }
   display: inline-flex; align-items: center; gap: 3px; font-family: var(--mono);
   font-size: 12px; padding: 1px 7px; border-radius: 10px; background: var(--border); color: var(--text);
 }
-.chip.warn { background: rgba(255, 180, 84, 0.14); color: var(--accent); }
+.chip.warn { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
 .chip.warn::before { content: "▼"; font-size: 9px; }
+.chip.hw { background: color-mix(in srgb, var(--link) 16%, transparent); color: var(--link); font-family: var(--sans); }
 .status { white-space: nowrap; }
 .status.ok::before { content: "● "; color: var(--ok); }
 .status.warn::before { content: "▲ "; color: var(--accent); }

@@ -249,6 +249,12 @@ func (s *Server) handleCompare(w http.ResponseWriter, r *http.Request) {
 		}
 		d.Reports = append(d.Reports, compareReport{meta, rep})
 	}
+	for _, cr := range d.Reports {
+		if cr.Meta.IsHardware() {
+			s.errorPage(w, r, http.StatusBadRequest, "Hardware-only reports have no test results, so they can't be compared. Select benchmark reports.")
+			return
+		}
+	}
 	p0 := d.Reports[0].Meta
 	for _, cr := range d.Reports[1:] {
 		if cr.Meta.ProfileName != p0.ProfileName || cr.Meta.ProfileVersion != p0.ProfileVersion {

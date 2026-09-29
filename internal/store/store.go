@@ -94,6 +94,15 @@ var migrations = []string{
 	);
 	CREATE INDEX reports_created ON reports(created_at);
 	CREATE INDEX reports_profile ON reports(profile_name, profile_version);`,
+
+	`ALTER TABLE reports ADD COLUMN kind TEXT NOT NULL DEFAULT 'benchmark';
+	ALTER TABLE reports ADD COLUMN source_name TEXT NOT NULL DEFAULT 'swarmdialer';
+	ALTER TABLE reports ADD COLUMN source_version TEXT NOT NULL DEFAULT '';
+	ALTER TABLE reports ADD COLUMN system_vendor TEXT NOT NULL DEFAULT '';
+	ALTER TABLE reports ADD COLUMN system_model TEXT NOT NULL DEFAULT '';
+	UPDATE reports SET source_version = swarmdialer_version;
+	UPDATE reports SET kind = 'hardware' WHERE profile_name = 'hardware';
+	CREATE INDEX reports_kind ON reports(kind, created_at);`,
 }
 
 func (s *Store) migrate() error {
@@ -365,12 +374,13 @@ func (s *Store) InsertReport(sum report.Summary, raw []byte, keyID int64) (bool,
 	res, err := s.db.Exec(`INSERT INTO reports(id, received_at, created_at, upload_key_id, schema_version,
 		profile_name, profile_version, swarmdialer_version, serverware_version, serverware_edition,
 		cpu_model, cpu_sockets, cpu_cores, cpu_threads, memory_bytes, disks, pbxware, test_count,
-		results_json, body_size, body_gz)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`,
+		results_json, body_size, body_gz, kind, source_name, source_version, system_vendor, system_model)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`,
 		sum.ReportID, now(), sum.CreatedAt, keyID, sum.SchemaVersion,
 		sum.ProfileName, sum.ProfileVersion, sum.SwarmDialerVersion, sum.ServerwareVersion, sum.ServerwareEdition,
 		sum.CPUModel, sum.CPUSockets, sum.CPUCores, sum.CPUThreads, sum.MemoryBytes, sum.Disks, sum.PBXware,
-		sum.TestCount, string(results), len(raw), buf.Bytes())
+		sum.TestCount, string(results), len(raw), buf.Bytes(),
+		sum.Kind, sum.SourceName, sum.SourceVersion, sum.SystemVendor, sum.SystemModel)
 	if err != nil {
 		return false, err
 	}
@@ -380,6 +390,11 @@ func (s *Store) InsertReport(sum report.Summary, raw []byte, keyID int64) (bool,
 
 type ReportRow struct {
 	ID                 string
+	Kind               string
+	SourceName         string
+	SourceVersion      string
+	SystemVendor       string
+	SystemModel        string
 	ReceivedAt         time.Time
 	CreatedAt          time.Time
 	KeyName            string
@@ -403,7 +418,22 @@ type ReportRow struct {
 
 func (r ReportRow) Profile() string { return fmt.Sprintf("%s v%d", r.ProfileName, r.ProfileVersion) }
 
+func (r ReportRow) IsHardware() bool { return r.Kind == "hardware" }
+
+// SourceLabel names the uploading tool: "SwarmDialer 1.4.0", "hw-collect 1.0.0".
+func (r ReportRow) SourceLabel() string {
+	name := r.SourceName
+	if name == "swarmdialer" {
+		name = "SwarmDialer"
+	}
+	return strings.TrimSpace(name + " " + r.SourceVersion)
+}
+
+// System is "vendor model", e.g. "Supermicro SYS-6029BT-DNC0R".
+func (r ReportRow) System() string { return strings.TrimSpace(r.SystemVendor + " " + r.SystemModel) }
+
 type ReportFilter struct {
+	Kind           string
 	ProfileName    string
 	ProfileVersion int
 	Serverware     string
@@ -418,11 +448,14 @@ type ReportFilter struct {
 const reportCols = `r.id, r.received_at, r.created_at, COALESCE(k.name, ''), r.profile_name, r.profile_version,
 	r.swarmdialer_version, r.serverware_version, r.serverware_edition, r.cpu_model, r.cpu_sockets,
 	r.cpu_cores, r.cpu_threads, r.memory_bytes, r.disks, r.pbxware, r.test_count, r.results_json,
-	r.note, r.body_size`
+	r.note, r.body_size, r.kind, r.source_name, r.source_version, r.system_vendor, r.system_model`
 
 func (s *Store) ListReports(f ReportFilter) ([]ReportRow, error) {
 	var where []string
 	var args []any
+	if f.Kind != "" {
+		where, args = append(where, "r.kind = ?"), append(args, f.Kind)
+	}
 	if f.ProfileName != "" {
 		where, args = append(where, "r.profile_name = ?"), append(args, f.ProfileName)
 	}
@@ -440,8 +473,9 @@ func (s *Store) ListReports(f ReportFilter) ([]ReportRow, error) {
 	}
 	if f.Text != "" {
 		p := "%" + likeEscape(f.Text) + "%"
-		where = append(where, `(r.cpu_model LIKE ? ESCAPE '\' OR r.disks LIKE ? ESCAPE '\' OR r.note LIKE ? ESCAPE '\' OR k.name LIKE ? ESCAPE '\')`)
-		args = append(args, p, p, p, p)
+		where = append(where, `(r.cpu_model LIKE ? ESCAPE '\' OR r.disks LIKE ? ESCAPE '\' OR r.note LIKE ? ESCAPE '\' OR k.name LIKE ? ESCAPE '\'
+			OR r.system_vendor LIKE ? ESCAPE '\' OR r.system_model LIKE ? ESCAPE '\')`)
+		args = append(args, p, p, p, p, p, p)
 	}
 	if !f.From.IsZero() {
 		where, args = append(where, "r.created_at >= ?"), append(args, f.From.UTC().Format(time.RFC3339))
@@ -490,7 +524,7 @@ func scanReport(row interface{ Scan(...any) error }) (*ReportRow, error) {
 	err := row.Scan(&r.ID, &received, &created, &r.KeyName, &r.ProfileName, &r.ProfileVersion,
 		&r.SwarmDialerVersion, &r.ServerwareVersion, &r.ServerwareEdition, &r.CPUModel, &r.CPUSockets,
 		&r.CPUCores, &r.CPUThreads, &r.MemoryBytes, &r.Disks, &r.PBXware, &r.TestCount, &results,
-		&r.Note, &r.BodySize)
+		&r.Note, &r.BodySize, &r.Kind, &r.SourceName, &r.SourceVersion, &r.SystemVendor, &r.SystemModel)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

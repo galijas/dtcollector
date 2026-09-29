@@ -3,7 +3,7 @@
 <div class="spread">
   <div>
     <h1>{{if $h.CPUModel}}{{$h.CPUModel}}{{else}}Unknown CPU{{end}}</h1>
-    <p class="sub">Report created {{ts $m.CreatedAt}} · received {{ts $m.ReceivedAt}} · from {{if $m.KeyName}}<strong>{{$m.KeyName}}</strong>{{else}}a deleted key{{end}} · SwarmDialer {{$r.SwarmDialerVersion}} · profile {{$m.Profile}}</p>
+    <p class="sub">{{if $m.IsHardware}}<span class="chip hw">Hardware only</span> {{end}}{{with $m.System}}{{.}} · {{end}}Report created {{ts $m.CreatedAt}} · received {{ts $m.ReceivedAt}} · from {{if $m.KeyName}}<strong>{{$m.KeyName}}</strong>{{else}}a deleted key{{end}} · {{$m.SourceLabel}} · profile {{$m.Profile}}</p>
   </div>
   <div class="row">
     <a class="button" href="/reports/{{$m.ID}}/json?download=1">Download JSON</a>
@@ -21,21 +21,29 @@
   <div class="card">
     <h3>Host</h3>
     <table class="kv"><tbody>
+      {{with $m.System}}<tr><th>System</th><td>{{.}}</td></tr>{{end}}
+      {{with $h.Motherboard}}<tr><th>Motherboard</th><td>{{.Vendor}} {{.Model}}{{with .Version}} <span class="muted">rev. {{.}}</span>{{end}}</td></tr>
+      {{if or .BIOSVendor .BIOSVersion}}<tr><th>BIOS</th><td>{{.BIOSVendor}} {{.BIOSVersion}}{{with .BIOSDate}} <span class="muted">({{.}})</span>{{end}}</td></tr>{{end}}{{end}}
       <tr><th>CPU</th><td>{{if $h.CPUModel}}{{$h.CPUModel}}{{else}}<span class="muted">unknown</span>{{end}}</td></tr>
       <tr><th>Sockets / cores / threads</th><td>{{$h.CPUSockets}} / {{$h.CPUCores}} / {{$h.CPUThreads}}</td></tr>
       <tr><th>Max clock</th><td>{{if $h.CPUMaxMHz}}{{num $h.CPUMaxMHz}} MHz{{else}}<span class="muted">unknown</span>{{end}}</td></tr>
       <tr><th>Memory</th><td>{{gib $h.MemoryBytes}}</td></tr>
       <tr><th>Disks</th><td>{{range $h.Disks}}<div>{{if .SizeBytes}}{{gb .SizeBytes}} {{end}}{{.Type}} {{.Model}}</div>{{else}}<span class="muted">none reported</span>{{end}}</td></tr>
-      <tr><th>Network</th><td>{{range $h.Network}}<div>{{num .SpeedMbps}} Mbit/s</div>{{else}}<span class="muted">none reported</span>{{end}}</td></tr>
+      {{with $h.StorageControllers}}<tr><th>Storage controllers</th><td>{{range .}}<div>{{.Count}}x {{.Vendor}} {{.Product}}</div>{{end}}</td></tr>{{end}}
+      {{with $h.NICs}}<tr><th>Network cards</th><td>{{range .}}<div>{{.Count}}x {{.Vendor}} {{.Product}}{{with .Driver}} <span class="muted">({{.}})</span>{{end}}{{if .SpeedMbps}} · {{num .SpeedMbps}} Mbit/s{{end}}</div>{{end}}</td></tr>{{end}}
+      <tr><th>Network links</th><td>{{range $h.Network}}<div>{{num .SpeedMbps}} Mbit/s</div>{{else}}<span class="muted">none reported</span>{{end}}</td></tr>
+      {{with $h.Bonds}}<tr><th>Bonds</th><td>{{range .}}<div>{{.Ports}} ports</div>{{end}}</td></tr>{{end}}
       <tr><th>SERVERware</th><td>{{$r.Environment.Serverware.Version}} {{$r.Environment.Serverware.Edition}}</td></tr>
     </tbody></table>
   </div>
   <div class="card">
     <h3>PBXware</h3>
+    {{if not $r.Environment.PBXware}}<p class="muted">Not included in this report.</p>{{else}}
     <table><thead><tr><th>Role</th><th>Version</th><th>Edition</th><th class="num">License channels</th></tr></thead><tbody>
       {{range $r.Environment.PBXware}}<tr><td>{{.Role}}</td><td>{{.Version}}</td><td>{{.Edition}}</td><td class="num">{{.LicenseChannels}}</td></tr>{{end}}
-    </tbody></table>
+    </tbody></table>{{end}}
     <h3>VPS limits</h3>
+    {{if not .Data.VPSNames}}<p class="muted">Not included in this report.</p>{{else}}
     <table><thead><tr><th>VPS</th><th class="num">CPU limit</th><th class="num">CPU share</th><th class="num">Memory limit</th><th class="num">Recording RAM disk</th></tr></thead><tbody>
       {{range .Data.VPSNames}}{{$v := index $r.Environment.VPS .}}
       <tr><td>{{.}}</td>
@@ -44,9 +52,13 @@
         <td class="num">{{if $v.MemLimitMB}}{{num $v.MemLimitMB}} MB{{else}}none{{end}}</td>
         <td class="num">{{with $v.CallrecRAMMB}}{{num (deref .)}} MB{{else}}–{{end}}</td></tr>
       {{end}}
-    </tbody></table>
+    </tbody></table>{{end}}
   </div>
 </div>
+
+{{if not $r.Tests}}
+<p class="card muted">This is a hardware-only report: it records the host's hardware and versions, without benchmark tests.</p>
+{{else}}
 
 <h2>Results</h2>
 <div class="table-wrap"><table>
@@ -86,4 +98,5 @@
 </section>
 {{end}}
 </div>
+{{end}}
 {{end}}

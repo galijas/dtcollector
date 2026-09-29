@@ -1,7 +1,8 @@
 # DT Collector upload API, version 1
 
-This is the contract between SwarmDialer (the uploader) and DT Collector.
-Change it in both projects together. The report format itself is defined
+This is the contract between the uploaders (SwarmDialer, and the
+hardware collection script `hw-collect`) and DT Collector. Change it in
+all projects together. The report format itself is defined
 by `internal/report/report.go`; this document describes it and the rules
 the server enforces.
 
@@ -11,10 +12,11 @@ the server enforces.
   certificate, so SwarmDialer verifies it normally (no self-signed
   acceptance). HTTP requests are redirected to HTTPS; the API should always
   be called with `https://`.
-- Every call carries `Authorization: Bearer <upload key>`.
-- Upload keys look like `dtk_` followed by 43 characters from `[A-Za-z0-9]`
-  (47 characters in total). An admin creates them in the web interface; the
-  full key is shown once. A key can only call the two endpoints below.
+- Every call carries `Authorization: Bearer <API key>`.
+- API (upload) keys look like `dtk_` followed by 43 characters from
+  `[A-Za-z0-9]` (47 characters in total). An admin creates them in the web
+  interface under **API (Upload) Keys**; the full key is shown once. A key
+  can only call the two endpoints below.
 
 Error bodies are always JSON: `{"error": "<message>"}`.
 
@@ -50,7 +52,19 @@ again). Keep the local copy either way.
 
 ## Report format, version 1
 
-One JSON document per completed run of the whole test script. Example
+Two kinds of report share this format and endpoint:
+
+- **Benchmark report**: one per completed run of a test script (profile
+  `standard`, `smoke`, ...), with at least one entry in `tests`.
+- **Hardware-only report**: profile **`{"name": "hardware", "version": 1}`**
+  and **`"tests": []`**. It records a host's hardware and versions without
+  tests. SwarmDialer's "Upload Hardware Info Only" sends one (with its
+  VPS and PBXware sections filled); the hardware collection script sends
+  one with `"vps": {}` and `"pbxware": []` and a `source` field instead of
+  `swarmdialer_version` (see below). The interface lists these as
+  "Hardware only" and keeps them out of comparisons.
+
+Benchmark report example
 (a complete one, with time series, is printed by `go run ./cmd/dtc-sample`):
 
 ```json
@@ -126,7 +140,11 @@ filtering and comparing. Anything else is stored as uploaded.
 - `report_id`: required, a UUID (stored lowercase). It is the idempotency key.
 - `created_at`, and every test's `started_at` and `finished_at`: RFC 3339
   timestamps. `finished_at` must not be before `started_at`.
-- `swarmdialer_version`: required, at most 64 characters.
+- `swarmdialer_version`: required for SwarmDialer, at most 64 characters.
+  Other tools send `"source": {"name": "hw-collect", "version": "1.0.0"}`
+  instead (name: same character rules as `profile.name`; version: 1 to 64
+  characters); `swarmdialer_version` may then be omitted. With neither,
+  the report is rejected.
 - `profile.name`: 1 to 64 characters from `[A-Za-z0-9_.-]`, starting with a
   letter or digit. `profile.version`: an integer, 1 or greater. Reports are
   compared only when both match.
@@ -136,10 +154,20 @@ filtering and comparing. Anything else is stored as uploaded.
   optional (report 0 or omit what SwarmDialer can't read).
 - `environment.pbxware[].role`: required for each entry.
 - `tests`: 1 to 50 entries with unique `id`s (same character rules as
-  `profile.name`).
+  `profile.name`). For profile `hardware` it must be `[]`, and
+  `environment.host.cpu_model` is required. An empty `tests` list with any
+  other profile is rejected.
+- `environment.vps` may be `{}` and `environment.pbxware` may be `[]`.
+- `environment.host` may also carry `system_vendor`, `system_model`,
+  `storage_controllers[]` (`vendor`, `product`, `count`), `nics[]`
+  (`vendor`, `product`, `driver`, `count`, `speed_mbps`), `bonds[]`
+  (`ports`) and `motherboard` (`vendor`, `model`, `version`,
+  `bios_vendor`, `bios_version`, `bios_date`). Counts and speeds must not
+  be negative. The interface shows them on the report page; system vendor
+  and model are also searchable.
 - `tests[].mode`: `ramp` or `rolling`. `tests[].recording`: `off`, `mono`
   or `stereo`.
-- `tests[].result.stop_reason`: `target_reached`, `host_cpu_100`,
+- `tests[].result.stop_reason`: `target_reached`, `target_not_reached`, `host_cpu_100`,
   `host_ram_100`, `vps_cpu_limit`, `vps_ram_limit`,
   `swarmdialer_overloaded` or `error`.
 - `result.recording.mp3_conversion_delay_s.trend`, when present: `stable`
@@ -197,3 +225,38 @@ gzip -c report.json | curl -sS https://dt.example.com/api/v1/reports \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -H "Content-Encoding: gzip" --data-binary @-
 ```
+
+## Hardware-only report from the hardware collection script
+
+```json
+{
+  "schema_version": 1,
+  "report_id": "0b0c8a52-3b7e-4c1a-9d2e-6b8f0a1c2d3e",
+  "created_at": "2026-09-29T10:00:00Z",
+  "source": { "name": "hw-collect", "version": "1.0.0" },
+  "profile": { "name": "hardware", "version": 1 },
+  "environment": {
+    "serverware": { "version": "5.2.1", "edition": "mirror" },
+    "host": {
+      "cpu_model": "Intel(R) Xeon(R) Silver 4208 CPU @ 2.10GHz",
+      "cpu_sockets": 2, "cpu_cores": 16, "cpu_threads": 32,
+      "cpu_max_mhz": 3200, "memory_bytes": 201326592000,
+      "system_vendor": "Supermicro", "system_model": "SYS-6029BT-DNC0R",
+      "disks": [ { "model": "SAMSUNG MZ7LH960HAJR-00005", "size_bytes": 0, "type": "ssd" } ],
+      "network": [ { "speed_mbps": 10000 } ],
+      "storage_controllers": [ { "vendor": "Broadcom / LSI", "product": "SAS3008 PCI-Express Fusion-MPT SAS-3", "count": 1 } ],
+      "nics": [ { "vendor": "Intel Corporation", "product": "Ethernet Controller X550", "driver": "ixgbe", "count": 2, "speed_mbps": 10000 } ],
+      "bonds": [ { "ports": 2 } ],
+      "motherboard": { "vendor": "Supermicro", "model": "X11DPT-B", "version": "1.02",
+                       "bios_vendor": "American Megatrends Inc.", "bios_version": "3.5", "bios_date": "05/15/2021" }
+    },
+    "vps": {},
+    "pbxware": []
+  },
+  "tests": []
+}
+```
+
+Same endpoint, API key, gzip and idempotency by `report_id` as benchmark
+reports. `go run ./cmd/dtc-sample -script` prints one (`-hardware` prints
+SwarmDialer's variant).

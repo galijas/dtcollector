@@ -99,6 +99,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	rep, err := report.Parse(raw)
 	if err != nil {
+		s.log.Printf("api: rejected report from key %q: %v", k.Name, err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -114,7 +115,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"id": sum.ReportID, "duplicate": true})
 		return
 	}
-	s.log.Printf("api: stored report %s (%s v%d, %d tests, %d bytes) from key %q",
-		sum.ReportID, sum.ProfileName, sum.ProfileVersion, sum.TestCount, len(raw), k.Name)
+	s.log.Printf("api: stored %s report %s (%s v%d, %d tests, %d bytes, %s %s) from key %q",
+		sum.Kind, sum.ReportID, sum.ProfileName, sum.ProfileVersion, sum.TestCount, len(raw), sum.SourceName, sum.SourceVersion, k.Name)
 	writeJSON(w, http.StatusCreated, map[string]string{"id": sum.ReportID})
 }

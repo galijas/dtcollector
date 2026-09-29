@@ -291,3 +291,26 @@ func stats(v []float64) (avg, p95, max float64) {
 func ptr[T any](v T) *T        { return &v }
 func round2(v float64) float64 { return math.Round(v*100) / 100 }
 func round4(v float64) float64 { return math.Round(v*10000) / 10000 }
+
+// SampleHardware builds a hardware-only report. With script set it looks
+// like the hardware collection script's upload (source instead of
+// swarmdialer_version, no VPS or PBXware section); otherwise like
+// SwarmDialer's "Upload Hardware Info Only".
+func SampleHardware(h SampleHost, seed uint64, created time.Time, script bool) *Report {
+	r := Sample(h, seed, created)
+	r.Profile = Profile{HardwareProfile, 1}
+	r.Tests = []Test{}
+	r.Environment.Host.SystemVendor = "Supermicro"
+	r.Environment.Host.SystemModel = "SYS-6029BT-DNC0R"
+	r.Environment.Host.StorageControllers = []Controller{{"Broadcom / LSI", "SAS3008 PCI-Express Fusion-MPT SAS-3", 1}}
+	r.Environment.Host.NICs = []NICModel{{"Intel Corporation", "Ethernet Controller X550", "ixgbe", 2, 10000}}
+	r.Environment.Host.Bonds = []Bond{{2}}
+	r.Environment.Host.Motherboard = &Motherboard{"Supermicro", "X11DPT-B", "1.02", "American Megatrends Inc.", "3.5", "05/15/2021"}
+	if script {
+		r.SwarmDialerVersion = ""
+		r.Source = &Source{"hw-collect", "1.0.0"}
+		r.Environment.VPS = map[string]VPSLimits{}
+		r.Environment.PBXware = []PBXware{}
+	}
+	return r
+}

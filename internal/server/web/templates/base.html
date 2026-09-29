@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="same-origin">
 <title>{{.Title}} · DT Collector</title>
-<link rel="icon" type="image/svg+xml" href="/static/icons/dtcollector-white.svg?v={{.Asset}}">
-<link rel="icon" type="image/png" sizes="32x32" href="/static/icons/dtcollector-white-32.png?v={{.Asset}}">
+<link rel="icon" type="image/svg+xml" href="/static/icons/dtcollector-white.svg?v={{.Asset}}" data-light="/static/icons/dtcollector-black.svg?v={{.Asset}}">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/icons/dtcollector-white-32.png?v={{.Asset}}" data-light="/static/icons/dtcollector-black-32.png?v={{.Asset}}">
+<script src="/static/theme.js?v={{.Asset}}"></script>
 <link rel="stylesheet" href="/static/vendor/uPlot.min.css?v={{.Asset}}">
 <link rel="stylesheet" href="/static/app.css?v={{.Asset}}">
 <script src="/static/vendor/uPlot.iife.min.js?v={{.Asset}}" defer></script>
@@ -15,15 +16,16 @@
 <body>
 <header>
   <a class="brand" href="/">
-    <img src="/static/icons/dtcollector-white.svg?v={{.Asset}}" alt="" class="brand-icon">
+    <img src="/static/icons/dtcollector-white.svg?v={{.Asset}}" alt="" class="brand-icon icon-dark">
+    <img src="/static/icons/dtcollector-black.svg?v={{.Asset}}" alt="" class="brand-icon icon-light">
     <h1>DT Collector</h1>
   </a>
+  <button class="theme-toggle" id="theme-toggle" type="button">&#9728;</button>
   {{- if .Admin}}
   <nav class="tabs">
     <a href="/"{{if or (eq .Nav "reports") (eq .Nav "report") (eq .Nav "compare")}} aria-current="page"{{end}}>Reports</a>
-    <a href="/keys"{{if eq .Nav "keys"}} aria-current="page"{{end}}>Upload keys</a>
-    <a href="/admins"{{if eq .Nav "admins"}} aria-current="page"{{end}}>Admins</a>
-    <a href="/account"{{if eq .Nav "account"}} aria-current="page"{{end}}>Account</a>
+    <a href="/keys"{{if eq .Nav "keys"}} aria-current="page"{{end}}>API (Upload) Keys</a>
+    <a href="/accounts"{{if eq .Nav "accounts"}} aria-current="page"{{end}}>Accounts</a>
     <form method="post" action="/logout"><button class="logout" type="submit" title="Logged in as {{.Admin.Username}}">Log out</button></form>
   </nav>
   {{- end}}

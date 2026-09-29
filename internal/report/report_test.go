@@ -116,3 +116,61 @@ func TestSummary(t *testing.T) {
 		t.Errorf("results %d", len(s.Results))
 	}
 }
+
+func TestHardwareReports(t *testing.T) {
+	now := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	for _, script := range []bool{false, true} {
+		b, _ := json.Marshal(SampleHardware(SampleHosts[0], 7, now, script))
+		r, err := Parse(b)
+		if err != nil {
+			t.Fatalf("script=%v: %v", script, err)
+		}
+		s := r.Summary()
+		if s.Kind != KindHardware || s.TestCount != 0 {
+			t.Errorf("script=%v: kind %q, %d tests", script, s.Kind, s.TestCount)
+		}
+		wantSrc := map[bool]string{false: "swarmdialer", true: "hw-collect"}[script]
+		if s.SourceName != wantSrc || s.SourceVersion == "" {
+			t.Errorf("script=%v: source %q %q", script, s.SourceName, s.SourceVersion)
+		}
+	}
+	// The script's exact JSON shape, as documented in Project_HW_collect.md.
+	raw := `{"schema_version":1,"report_id":"0b0c8a52-3b7e-4c1a-9d2e-6b8f0a1c2d3e","created_at":"2026-09-29T10:00:00Z",
+	"source":{"name":"hw-collect","version":"1.0.0"},"profile":{"name":"hardware","version":1},
+	"environment":{"serverware":{"version":"unknown","edition":"mirror"},"host":{"cpu_model":"Intel(R) Xeon(R) Silver 4208 CPU @ 2.10GHz",
+	"cpu_sockets":2,"cpu_cores":16,"cpu_threads":32,"cpu_max_mhz":3200,"memory_bytes":201326592000,
+	"disks":[{"model":"SAMSUNG MZ7LH960HAJR-00005","size_bytes":0,"type":"ssd"}],"network":[],"storage_controllers":[],"nics":[],"bonds":[]},
+	"vps":{},"pbxware":[]},"tests":[]}`
+	if _, err := Parse([]byte(raw)); err != nil {
+		t.Fatalf("script JSON: %v", err)
+	}
+}
+
+func TestHardwareValidation(t *testing.T) {
+	cases := []struct {
+		name, field string
+		f           func(m map[string]any)
+	}{
+		{"benchmark without tests", "tests", func(m map[string]any) { m["tests"] = []any{} }},
+		{"hardware with tests", "tests", func(m map[string]any) { m["profile"] = map[string]any{"name": "hardware", "version": 1} }},
+		{"no version at all", "swarmdialer_version", func(m map[string]any) { delete(m, "swarmdialer_version") }},
+		{"bad source", "source.name", func(m map[string]any) { m["source"] = map[string]any{"name": "", "version": "1"} }},
+		{"hardware without cpu", "environment.host.cpu_model", func(m map[string]any) {
+			m["profile"] = map[string]any{"name": "hardware", "version": 1}
+			m["tests"] = []any{}
+			m["environment"].(map[string]any)["host"].(map[string]any)["cpu_model"] = ""
+		}},
+	}
+	for _, c := range cases {
+		_, err := Parse(mutate(t, c.f))
+		var ve *ValidationError
+		if !errors.As(err, &ve) || ve.Field != c.field {
+			t.Errorf("%s: got %v, want field %q", c.name, err, c.field)
+		}
+	}
+	// target_not_reached is a valid stop reason.
+	b := mutate(t, func(m map[string]any) { test0(m)["result"].(map[string]any)["stop_reason"] = "target_not_reached" })
+	if _, err := Parse(b); err != nil {
+		t.Fatalf("target_not_reached: %v", err)
+	}
+}

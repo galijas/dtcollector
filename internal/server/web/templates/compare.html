@@ -7,6 +7,7 @@
 <thead><tr><th></th>{{range $i, $c := $d.Reports}}<th><span class="key s{{add $i 1}}"></span>Report {{add $i 1}}</th>{{end}}</tr></thead>
 <tbody>
   <tr><th>CPU</th>{{range $d.Reports}}<td><a href="/reports/{{.Meta.ID}}">{{if .Meta.CPUModel}}{{.Meta.CPUModel}}{{else}}Unknown CPU{{end}}</a></td>{{end}}</tr>
+  <tr><th>System</th>{{range $d.Reports}}<td>{{.Meta.System}}</td>{{end}}</tr>
   <tr><th>Cores / threads</th>{{range $d.Reports}}<td>{{if .Meta.CPUSockets}}{{.Meta.CPUSockets}} × {{end}}{{.Meta.CPUCores}} / {{.Meta.CPUThreads}}</td>{{end}}</tr>
   <tr><th>Memory</th>{{range $d.Reports}}<td>{{gib .Meta.MemoryBytes}}</td>{{end}}</tr>
   <tr><th>Disks</th>{{range $d.Reports}}<td>{{.Meta.Disks}}</td>{{end}}</tr>

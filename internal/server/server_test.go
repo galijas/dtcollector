@@ -257,9 +257,8 @@ func TestPages(t *testing.T) {
 		"/?profile=standard:1&sw=5.2.1":          {"Xeon(R) Gold 6338"},
 		"/reports/" + ids[0]:                     {"ramp_norec_low", "Environment", "pbxware_mt", "Target reached"},
 		"/compare?ids=" + strings.Join(ids, ","): {"Compare 3 reports", "Max concurrent calls", "best", "MP3 conversion delay avg"},
-		"/keys":                                  {"Test site", "Active"},
-		"/admins":                                {"admin", "(you)"},
-		"/account":                               {"Change password"},
+		"/keys":                                  {"Test site", "Active", "API (Upload) Keys"},
+		"/accounts":                              {"admin", "(you)", "Change password", "Create admin"},
 	}
 	for p, want := range checks {
 		resp, body := e.get(e.client, p)
@@ -329,15 +328,15 @@ func TestKeyAndAdminManagement(t *testing.T) {
 		t.Fatal("full key shown again on the keys page")
 	}
 
-	if r := e.form(e.client, "/admins", url.Values{"username": {"second"}}); r.StatusCode != 200 {
+	if r := e.form(e.client, "/accounts", url.Values{"username": {"second"}}); r.StatusCode != 200 {
 		t.Fatalf("create admin: %d", r.StatusCode)
 	}
 	me, _ := e.st.AdminByUsername("admin")
-	if r := e.form(e.client, "/admins/"+itoa(me.ID)+"/delete", nil); r.StatusCode != 400 {
+	if r := e.form(e.client, "/accounts/"+itoa(me.ID)+"/delete", nil); r.StatusCode != 400 {
 		t.Fatalf("delete self: %d", r.StatusCode)
 	}
 	// Changing the password ends the session.
-	r := e.form(e.client, "/account/password", url.Values{"current": {"correct horse battery"}, "password": {"another long password"}, "confirm": {"another long password"}})
+	r := e.form(e.client, "/accounts/password", url.Values{"current": {"correct horse battery"}, "password": {"another long password"}, "confirm": {"another long password"}})
 	if r.StatusCode != http.StatusSeeOther {
 		t.Fatalf("change password: %d", r.StatusCode)
 	}
@@ -347,3 +346,56 @@ func TestKeyAndAdminManagement(t *testing.T) {
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestHardwareReportsServer(t *testing.T) {
+	e := newEnv(t)
+	now := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	var ids []string
+	for i, script := range []bool{false, true} {
+		r := report.SampleHardware(report.SampleHosts[i], uint64(40+i), now, script)
+		b, _ := json.Marshal(r)
+		if code, out := e.upload(e.key, b, true); code != 201 {
+			t.Fatalf("hardware upload (script=%v): %d %v", script, code, out)
+		}
+		ids = append(ids, r.ReportID)
+	}
+	br, bb := sample(50, 2)
+	e.upload(e.key, bb, false)
+
+	_, body := e.get(e.client, "/?kind=hardware")
+	if !strings.Contains(body, ids[0]) || !strings.Contains(body, ids[1]) || strings.Contains(body, br.ReportID) {
+		t.Error("kind=hardware filter")
+	}
+	if !strings.Contains(body, "Hardware only") || !strings.Contains(body, "hw-collect 1.0.0") || !strings.Contains(body, "Supermicro SYS-6029BT-DNC0R") {
+		t.Error("hardware list row content")
+	}
+	_, body = e.get(e.client, "/?kind=benchmark")
+	if strings.Contains(body, ids[0]) || !strings.Contains(body, br.ReportID) {
+		t.Error("kind=benchmark filter")
+	}
+	resp, body := e.get(e.client, "/reports/"+ids[1])
+	if resp.StatusCode != 200 {
+		t.Fatalf("hardware report page: %d", resp.StatusCode)
+	}
+	for _, w := range []string{"hardware-only report", "X11DPT-B", "SAS3008", "Ethernet Controller X550", "Not included in this report."} {
+		if !strings.Contains(body, w) {
+			t.Errorf("hardware report page missing %q", w)
+		}
+	}
+	if strings.Contains(body, "report-charts") {
+		t.Error("hardware report page has a charts section")
+	}
+	if resp, _ := e.get(e.client, "/compare?ids="+ids[0]+","+ids[1]); resp.StatusCode != 400 {
+		t.Errorf("compare hardware: %d", resp.StatusCode)
+	}
+}
+
+func TestOldAccountURLsRedirect(t *testing.T) {
+	e := newEnv(t)
+	for _, p := range []string{"/admins", "/account"} {
+		resp, _ := e.get(e.client, p)
+		if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != "/accounts" {
+			t.Errorf("%s: %d %q", p, resp.StatusCode, resp.Header.Get("Location"))
+		}
+	}
+}
