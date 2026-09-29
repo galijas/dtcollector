@@ -5,9 +5,10 @@ Read this first when continuing work. The original brief is
 
 ## Status (2026-09-28)
 
-First version deployed (2026-09-28) on a SERVERware VPS: HTTPS with the
-Let's Encrypt certificate works. The firewall is set in SERVERware (ufw
-can't run in the container).
+Deployed at https://dtcollector.dtbicom.xyz/ (SERVERware VPS, KVM,
+SSH on port 2020). HTTPS with the Let's Encrypt certificate works.
+2026-09-29: UI restyled to match SwarmDialer (dark theme, centered header
+with the white DT Collector icon, tab navigation); deployed as bbfacd9.
 
 Done:
 - Upload API: `GET /api/v1/ping`, `POST /api/v1/reports` (gzip, 20 MB
@@ -65,10 +66,15 @@ Done:
 - Upgrade: on the server, `cd /root/dtcollector && git pull && sudo ./install.sh`
   (Enter keeps the saved DNS name and email). Claude doesn't run commands
   there; it gives the commands to run.
-- 2026-09-28 first install: the server is a container, `ufw enable` failed
-  and `set -e` aborted the script before the admin password was printed.
-  Fixed in `a4fc0eb` (skip ufw in containers, print the password on exit).
-  The admin password was reset with `reset-password`.
+- 2026-09-28 first install: `ufw enable` failed and `set -e` aborted the
+  script before the admin password was printed (password reset with
+  `reset-password`; the password is now printed on exit in every case).
+  Cause, found 2026-09-29: the VPS is KVM (not a container) with a
+  SERVERware kernel (6.1.x) that has no `/lib/modules` and no LOG target,
+  so ufw can't work. nftables works, so install.sh now probes ufw and falls
+  back to its own nftables ruleset (`dtcollector-firewall.service`).
+- Claude may deploy directly over SSH (root, port 2020) when the user
+  provides the password in the session; it is never stored in files.
 
 ## Next session
 
