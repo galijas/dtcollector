@@ -71,8 +71,8 @@ Done:
   `reset-password`; the password is now printed on exit in every case).
   Cause, found 2026-09-29: the VPS is KVM (not a container) with a
   SERVERware kernel (6.1.x) that has no `/lib/modules` and no LOG target,
-  so ufw can't work. nftables works, so install.sh now probes ufw and falls
-  back to its own nftables ruleset (`dtcollector-firewall.service`).
+  so ufw can't work. Decision (2026-09-29): the firewall is SERVERware's
+  job; install.sh no longer configures one (ufw/nftables code removed).
 - Claude may deploy directly over SSH (root, port 2020) when the user
   provides the password in the session; it is never stored in files.
 

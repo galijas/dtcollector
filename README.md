@@ -47,11 +47,7 @@ The install script:
    `dtcollector`, with systemd sandboxing; it may bind ports 80 and 443
    through `CAP_NET_BIND_SERVICE` only),
 6. enables a daily database backup timer,
-7. offers a firewall that lets in only SSH, 80 and 443: `ufw` where the
-   kernel supports it, otherwise a small nftables ruleset (a SERVERware VPS
-   kernel has no loadable modules, so ufw can't run there; the ruleset is
-   `/etc/dtcollector/firewall.nft`, loaded by `dtcollector-firewall.service`),
-8. makes the first HTTPS request, which is when the certificate is issued.
+7. makes the first HTTPS request, which is when the certificate is issued.
 
 Then open `https://<dns-name>/`, log in, and create an upload key under
 **Upload keys** for each site or network that runs SwarmDialer. Enter that
@@ -121,8 +117,8 @@ sudo systemctl start dtcollector
 - Upload keys are 43 random characters, stored as SHA-256 hashes, shown
   once, revocable individually, with "last used" shown.
 - The service runs as its own unprivileged user under a sandboxed systemd
-  unit. The firewall (ufw, or nftables where ufw can't run) allows only
-  SSH, 80 and 443 inbound.
+  unit. The installer doesn't configure a firewall: restrict inbound
+  traffic to SSH, 80 and 443 in the SERVERware (or hosting) firewall.
 - Reports contain only hardware details, versions and results (see the
   privacy rule in [docs/api.md](docs/api.md)).
 
