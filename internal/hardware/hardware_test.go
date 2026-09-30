@@ -51,35 +51,35 @@ func TestCleaning(t *testing.T) {
 	}
 }
 
-func TestSeed(t *testing.T) {
-	parts, err := Seed()
+func TestStarterList(t *testing.T) {
+	parts, err := StarterList()
 	if err != nil {
 		t.Fatal(err)
 	}
-	count := map[string]int{}
+	if len(parts) != 370 {
+		t.Errorf("%d parts, want 370", len(parts))
+	}
 	byName := map[string]Part{}
+	seen := map[string]bool{}
 	for _, p := range parts {
-		count[p.Category]++
 		byName[p.Name] = p
-		if !ValidCategory(p.Category) || !ValidStatus(p.Status) || p.Source != SourceDatasheet || p.Name == "" {
-			t.Fatalf("bad part %+v", p)
+		k := p.Category + "/" + Key(p.Category, p.Name)
+		if seen[k] {
+			t.Errorf("duplicate %s", k)
+		}
+		seen[k] = true
+		if p.Source != SourceDatasheet && p.Source != SourceSWAnalytics {
+			t.Errorf("%s: unexpected source %q", p.Name, p.Source)
 		}
 	}
-	want := map[string]int{CatServer: 41, CatCPU: 61, CatNIC: 29, CatDrive: 19, CatController: 28}
-	for c, n := range want {
-		if count[c] != n {
-			t.Errorf("%s: %d parts, want %d", c, count[c], n)
-		}
+	if p := byName["Dell BOSS-S1"]; p.Status != StatusUnsupported || p.Comment != "Boot issues encountered previously" {
+		t.Errorf("BOSS-S1: %+v", p)
 	}
-	flr := byName["HPE Ethernet 1Gb 4-port 331FLR"]
-	if flr.Status != StatusUnsupported || flr.Attrs.Driver != "tg3" {
-		t.Errorf("331FLR: %+v", flr)
+	if p := byName["Marvell 88SE9230 SATA RAID"]; p.Status != StatusUnverified || p.UpdatedBy != "admin" {
+		t.Errorf("edited entry lost: %+v", p)
 	}
-	if d := byName["Samsung PM9A3"]; d.Attrs.Type != "NVMe SSD" {
-		t.Errorf("PM9A3 type %q", d.Attrs.Type)
-	}
-	if c := byName["Dell PERC H730P"]; c.Comment == "" {
-		t.Error("controller details should be in the comment")
+	if p := byName["Intel X550"]; p.Attrs.Driver != "ixgbe" || len(p.Aliases) == 0 {
+		t.Errorf("attrs/aliases lost: %+v", p)
 	}
 }
 
@@ -121,24 +121,7 @@ func keys(m map[string]Part) []string {
 	return out
 }
 
-func TestSWAnalytics(t *testing.T) {
-	parts, err := SWAnalytics()
-	if err != nil {
-		t.Fatal(err)
-	}
-	count := map[string]int{}
-	for _, p := range parts {
-		count[p.Category]++
-		if p.Source != SourceSWAnalytics || p.Status != StatusSupported || p.Name == "" {
-			t.Fatalf("bad part %+v", p)
-		}
-	}
-	want := map[string]int{CatServer: 93, CatCPU: 125, CatNIC: 42, CatDrive: 16, CatController: 23}
-	for c, n := range want {
-		if count[c] != n {
-			t.Errorf("%s: %d parts, want %d", c, count[c], n)
-		}
-	}
+func TestFirstGenE5Key(t *testing.T) {
 	if Key(CatCPU, "Intel(R) Xeon(R) CPU E5-2630 0 @ 2.30GHz") != Key(CatCPU, "Intel Xeon E5-2630") {
 		t.Error("the first-generation E5 \" 0\" suffix must not affect matching")
 	}

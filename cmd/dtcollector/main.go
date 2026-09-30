@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 
 	"dtcollector/internal/auth"
+	"dtcollector/internal/hardware"
 	"dtcollector/internal/server"
 	"dtcollector/internal/store"
 )
@@ -34,6 +36,7 @@ Usage:
   dtcollector create-admin -username NAME [-data-dir DIR]      (prints a generated password)
   dtcollector reset-password -username NAME [-data-dir DIR]    (prints a generated password)
   dtcollector backup [-data-dir DIR] [-dest DIR] [-keep N]
+  dtcollector export-hardware [-data-dir DIR] [-out FILE]      (HW Validation list as a starter list for new installs)
   dtcollector version
 `
 
@@ -53,6 +56,8 @@ func main() {
 		err = cmdAdmin(os.Args[2:], true)
 	case "backup":
 		err = cmdBackup(os.Args[2:])
+	case "export-hardware":
+		err = cmdExportHardware(os.Args[2:])
 	case "version", "-version", "--version":
 		fmt.Println(version)
 	default:
@@ -253,5 +258,42 @@ func cmdBackup(args []string) error {
 		fmt.Println("removed old backup:", old[0])
 		old = old[1:]
 	}
+	return nil
+}
+
+// cmdExportHardware writes the HW Validation list in the starter-list format
+// (internal/hardware/seed/hardware-list.json), so new installations begin
+// with the live list.
+func cmdExportHardware(args []string) error {
+	fs := flag.NewFlagSet("export-hardware", flag.ExitOnError)
+	dataDir := fs.String("data-dir", defaultDataDir, "data directory")
+	out := fs.String("out", "", "output file (default: standard output)")
+	fs.Parse(args)
+	st, err := openStore(*dataDir)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	rows, err := st.ListParts()
+	if err != nil {
+		return err
+	}
+	parts := make([]hardware.Part, len(rows))
+	for i, r := range rows {
+		parts[i] = r.Part
+	}
+	b, err := json.MarshalIndent(hardware.NewSnapshot(parts), "", "  ")
+	if err != nil {
+		return err
+	}
+	b = append(b, '\n')
+	if *out == "" {
+		_, err = os.Stdout.Write(b)
+		return err
+	}
+	if err := os.WriteFile(*out, b, 0o644); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "exported %d parts to %s\n", len(parts), *out)
 	return nil
 }

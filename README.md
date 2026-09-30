@@ -14,9 +14,10 @@ each test's results and time series, and compare hosts side by side.
   [docs/api.md](docs/api.md) for the contract.
 - **HW Validation** (the first tab): a list of hardware parts (server
   models, CPUs, NICs, drives, storage controllers) marked Supported,
-  Unsupported or Not validated. It is seeded on first install from the
-  Supported Hardware datasheet and SW Analytics (`internal/hardware/seed/`),
-  extended by hand, and extended automatically by every uploaded report:
+  Unsupported or Not validated. It is seeded on first install with the
+  starter list `internal/hardware/seed/hardware-list.json` (the Supported
+  Hardware datasheet and SW Analytics, as edited by the admins), extended
+  by hand, and extended automatically by every uploaded report:
   parts a report describes that aren't listed yet are added as Supported,
   linked to that report.
 - **Web interface**: local admin accounts (bcrypt-hashed passwords). Admins
@@ -87,6 +88,7 @@ service.
 | Reset an admin's password | `sudo runuser -u dtcollector -- dtcollector reset-password -data-dir /var/lib/dtcollector -username <name>` |
 | Create an admin from the shell | `sudo runuser -u dtcollector -- dtcollector create-admin -data-dir /var/lib/dtcollector -username <name>` |
 | Change DNS name or email | `sudo ./install.sh` and enter the new values |
+| Export the HW Validation list (new starter list) | `sudo runuser -u dtcollector -- dtcollector export-hardware -data-dir /var/lib/dtcollector -out /tmp/hardware-list.json` |
 
 Backups are consistent SQLite copies (`VACUUM INTO`), taken daily, with the
 last 14 kept in `/var/lib/dtcollector/backups`. They are on the same disk

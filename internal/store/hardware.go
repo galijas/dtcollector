@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -41,8 +40,10 @@ type execer interface {
 	Exec(query string, args ...any) (sql.Result, error)
 }
 
+// seedHardware (migration 3) fills a new database with the starter list
+// (internal/hardware/seed/hardware-list.json).
 func seedHardware(tx *sql.Tx) error {
-	parts, err := hardware.Seed()
+	parts, err := hardware.StarterList()
 	if err != nil {
 		return err
 	}
@@ -54,159 +55,14 @@ func seedHardware(tx *sql.Tx) error {
 	return nil
 }
 
-// seedSWAnalytics (migration 4) adds the SW Analytics list. A part already
-// listed keeps its row and source; it gains the SW Analytics names as aliases
-// and its SW Analytics count in the comment.
-func seedSWAnalytics(tx *sql.Tx) error {
-	parts, err := hardware.SWAnalytics()
-	if err != nil {
-		return err
-	}
-	indexes := map[string]map[string]*hardware.Part{}
-	for i := range parts {
-		p := &parts[i]
-		idx, ok := indexes[p.Category]
-		if !ok {
-			if idx, err = keyIndex(tx, p.Category); err != nil {
-				return err
-			}
-			indexes[p.Category] = idx
-		}
-		if existing := conflict(idx, p); existing != nil {
-			var comment string
-			if err := tx.QueryRow(`SELECT comment FROM hw_parts WHERE id = ?`, existing.ID).Scan(&comment); err != nil {
-				return err
-			}
-			for _, a := range p.Aliases {
-				existing.Aliases = appendUnique(existing.Aliases, a)
-			}
-			if c := swCount(p.Comment); c != "" && !strings.Contains(comment, c) {
-				comment = strings.TrimSpace(comment + " Also in " + c)
-			}
-			aliases, _ := json.Marshal(existing.Aliases)
-			if _, err := tx.Exec(`UPDATE hw_parts SET aliases = ?, comment = ? WHERE id = ?`, string(aliases), comment, existing.ID); err != nil {
-				return err
-			}
-			continue
-		}
-		if _, err := insertPart(tx, p); err != nil {
-			return fmt.Errorf("seed SW Analytics %s %q: %w", p.Category, p.Name, err)
-		}
-		for _, k := range p.Keys() {
-			idx[k] = p
-		}
-	}
-	return nil
-}
-
-// updateSWAnalytics (migration 5) removes SW Analytics parts that were taken
-// out of the list (desktop CPUs and boards) and adds the new ones (NVMe
-// drives); parts already present are left as they are.
-func updateSWAnalytics(tx *sql.Tx) error {
-	removed, err := hardware.SWAnalyticsRemoved()
-	if err != nil {
-		return err
-	}
-	for _, p := range removed {
-		if _, err := tx.Exec(`DELETE FROM hw_parts WHERE source = ? AND category = ? AND name_key = ?`,
-			hardware.SourceSWAnalytics, p.Category, hardware.Key(p.Category, p.Name)); err != nil {
-			return err
-		}
-	}
-	return seedSWAnalytics(tx)
-}
-
-var swPeriodRe = regexp.MustCompile(` \(highest daily value, [^)]*\)`)
-
-// shortenSWCounts (migration 6) drops the "(highest daily value, <from> to
-// <to>)" part of SW Analytics counts from comments, keeping "SW Analytics
-// count: N." and everything else as it is.
-func shortenSWCounts(tx *sql.Tx) error {
-	rows, err := tx.Query(`SELECT id, comment FROM hw_parts WHERE comment LIKE '%(highest daily value,%'`)
-	if err != nil {
-		return err
-	}
-	type fix struct {
-		id      int64
-		comment string
-	}
-	var fixes []fix
-	for rows.Next() {
-		var f fix
-		if err := rows.Scan(&f.id, &f.comment); err != nil {
-			rows.Close()
-			return err
-		}
-		f.comment = swPeriodRe.ReplaceAllString(f.comment, "")
-		fixes = append(fixes, f)
-	}
-	rows.Close()
-	for _, f := range fixes {
-		if _, err := tx.Exec(`UPDATE hw_parts SET comment = ? WHERE id = ?`, f.comment, f.id); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// addDatasheetParts inserts the named datasheet parts added after the first
-// release, unless the list already has them. Other datasheet parts are left
-// alone, so entries an admin deleted don't come back.
-func addDatasheetParts(tx *sql.Tx, names ...string) error {
-	parts, err := hardware.Seed()
-	if err != nil {
-		return err
-	}
-	want := map[string]bool{}
-	for _, n := range names {
-		want[n] = true
-	}
-	for i := range parts {
-		p := &parts[i]
-		if !want[p.Name] {
-			continue
-		}
-		delete(want, p.Name)
-		idx, err := keyIndex(tx, p.Category)
-		if err != nil {
-			return err
-		}
-		if conflict(idx, p) != nil {
-			continue
-		}
-		if _, err := insertPart(tx, p); err != nil {
-			return err
-		}
-	}
-	if len(want) > 0 {
-		return fmt.Errorf("datasheet has no entry named %v", want)
-	}
-	return nil
-}
-
-// swCount picks the "SW Analytics count: ..." sentence out of a comment.
-func swCount(comment string) string {
-	if i := strings.Index(comment, "SW Analytics count:"); i >= 0 {
-		return comment[i:]
-	}
-	return ""
-}
-
-func appendUnique(list []string, s string) []string {
-	for _, x := range list {
-		if x == s {
-			return list
-		}
-	}
-	return append(list, s)
-}
-
 func insertPart(x execer, p *hardware.Part) (int64, error) {
 	t := now()
 	if p.CreatedAt == "" {
 		p.CreatedAt = t
 	}
-	p.UpdatedAt = t
+	if p.UpdatedAt == "" {
+		p.UpdatedAt = t
+	}
 	attrs, _ := json.Marshal(p.Attrs)
 	aliases, _ := json.Marshal(nonNil(p.Aliases))
 	var rep any

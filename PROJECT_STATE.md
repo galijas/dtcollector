@@ -65,11 +65,15 @@ Done:
   "Not validated"), comment, attrs (NIC speed/ports/driver, drive type),
   aliases (texts it was seen as; used for matching and search), source
   (datasheet, manual, test_script, swhw), source report, created/updated by.
-- Migration 3 seeds the datasheet from `internal/hardware/seed/*.json`
-  (copies of `~/claude/Resources/{Supported,Unsupported} Hardware.json`).
-  A part in both lists is kept once as unsupported (the HPE 331FLR/331i).
-  The seed runs once per database; changing the JSON later only affects new
-  installs.
+- Starter list (2026-09-30): migration 3 seeds a new database from
+  `internal/hardware/seed/hardware-list.json`, a snapshot of the live list
+  (datasheet + SW Analytics as edited by the admins, 370 parts). Migrations
+  5-7 are now empty (their one-time updates are in the snapshot). To refresh
+  the starter list: on the VPS run `dtcollector export-hardware -data-dir
+  /var/lib/dtcollector -out FILE` (as the dtcollector user), copy FILE over
+  `internal/hardware/seed/hardware-list.json`, commit. The build scripts in
+  `~/claude/Resources/Hardware/` and the JSON files they produce are the
+  history of how the list began; they no longer feed DT Collector directly.
 - Columns follow what reports can fill: NIC speed, ports seen, Linux driver;
   drive type. Datasheet-only details (chipset, media, interface, capacities,
   controller type/chipset/driver) are in the comment.
