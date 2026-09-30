@@ -72,7 +72,12 @@ func New(cfg Config) (*Server, error) {
 	ui.HandleFunc("POST /login", s.handleLogin)
 	ui.HandleFunc("POST /logout", s.handleLogout)
 
-	ui.HandleFunc("GET /{$}", s.admin(s.handleReports))
+	ui.HandleFunc("GET /{$}", s.admin(s.handleHardware))
+	ui.HandleFunc("POST /hardware", s.admin(s.handlePartCreate))
+	ui.HandleFunc("POST /hardware/{id}", s.admin(s.handlePartUpdate))
+	ui.HandleFunc("POST /hardware/{id}/delete", s.admin(s.handlePartDelete))
+
+	ui.HandleFunc("GET /reports", s.admin(s.handleReports))
 	ui.HandleFunc("GET /reports/{id}", s.admin(s.handleReport))
 	ui.HandleFunc("GET /reports/{id}/json", s.admin(s.handleReportJSON))
 	ui.HandleFunc("POST /reports/{id}/note", s.admin(s.handleReportNote))

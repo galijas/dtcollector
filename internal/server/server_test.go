@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -252,9 +253,9 @@ func TestPages(t *testing.T) {
 		ids = append(ids, r.ReportID)
 	}
 	checks := map[string][]string{
-		"/":                                      {"Compare selected", "AMD EPYC 7443P", "Test site"},
-		"/?q=EPYC":                               {"AMD EPYC 7443P"},
-		"/?profile=standard:1&sw=5.2.1":          {"Xeon(R) Gold 6338"},
+		"/reports":                               {"Compare selected", "AMD EPYC 7443P", "Test site"},
+		"/reports?q=EPYC":                        {"AMD EPYC 7443P"},
+		"/reports?profile=standard:1&sw=5.2.1":   {"Xeon(R) Gold 6338"},
 		"/reports/" + ids[0]:                     {"ramp_norec_low", "Environment", "pbxware_mt", "Target reached"},
 		"/compare?ids=" + strings.Join(ids, ","): {"Compare 3 reports", "Max concurrent calls", "best", "MP3 conversion delay avg"},
 		"/keys":                                  {"Test site", "Active", "API (Upload) Keys"},
@@ -272,7 +273,7 @@ func TestPages(t *testing.T) {
 			}
 		}
 	}
-	if resp, body := e.get(e.client, "/?q=nothing-matches"); resp.StatusCode != 200 || !strings.Contains(body, "No reports match") {
+	if resp, body := e.get(e.client, "/reports?q=nothing-matches"); resp.StatusCode != 200 || !strings.Contains(body, "No reports match") {
 		t.Errorf("empty filter: %d", resp.StatusCode)
 	}
 	if resp, _ := e.get(e.client, "/reports/"+ids[0]+"/json"); resp.Header.Get("Content-Type") != "application/json" {
@@ -362,14 +363,14 @@ func TestHardwareReportsServer(t *testing.T) {
 	br, bb := sample(50, 2)
 	e.upload(e.key, bb, false)
 
-	_, body := e.get(e.client, "/?kind=hardware")
+	_, body := e.get(e.client, "/reports?kind=hardware")
 	if !strings.Contains(body, ids[0]) || !strings.Contains(body, ids[1]) || strings.Contains(body, br.ReportID) {
 		t.Error("kind=hardware filter")
 	}
 	if !strings.Contains(body, "Hardware only") || !strings.Contains(body, "hw-collect 1.0.0") || !strings.Contains(body, "Supermicro SYS-6029BT-DNC0R") {
 		t.Error("hardware list row content")
 	}
-	_, body = e.get(e.client, "/?kind=benchmark")
+	_, body = e.get(e.client, "/reports?kind=benchmark")
 	if strings.Contains(body, ids[0]) || !strings.Contains(body, br.ReportID) {
 		t.Error("kind=benchmark filter")
 	}
@@ -398,4 +399,118 @@ func TestOldAccountURLsRedirect(t *testing.T) {
 			t.Errorf("%s: %d %q", p, resp.StatusCode, resp.Header.Get("Location"))
 		}
 	}
+}
+
+// hwData decodes the HW Validation page's embedded list.
+func hwData(t *testing.T, e *env) hwPayload {
+	t.Helper()
+	resp, body := e.get(e.client, "/")
+	if resp.StatusCode != 200 {
+		t.Fatalf("HW Validation page: %d", resp.StatusCode)
+	}
+	i := strings.Index(body, `data-hw="`)
+	if i < 0 {
+		t.Fatal("no data-hw attribute")
+	}
+	rest := body[i+len(`data-hw="`):]
+	raw := html.UnescapeString(rest[:strings.Index(rest, `"`)])
+	var p hwPayload
+	if err := json.Unmarshal([]byte(raw), &p); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func findPart(p hwPayload, category, name string) *store.HWPart {
+	for i := range p.Parts {
+		if p.Parts[i].Category == category && p.Parts[i].Name == name {
+			return &p.Parts[i]
+		}
+	}
+	return nil
+}
+
+func TestHardwareList(t *testing.T) {
+	e := newEnv(t)
+	p := hwData(t, e)
+	if len(p.Parts) != 176 || !p.CanEdit {
+		t.Fatalf("seeded parts %d, can edit %v", len(p.Parts), p.CanEdit)
+	}
+	if x := findPart(p, "nic", "HPE Ethernet 1Gb 4-port 331FLR"); x == nil || x.Status != "unsupported" || x.Source != "datasheet" {
+		t.Fatalf("331FLR: %+v", x)
+	}
+
+	// A hardware report adds its unknown parts (linked to the report) and skips known ones.
+	r := report.SampleHardware(report.SampleHosts[1], 60, time.Now(), true)
+	b, _ := json.Marshal(r)
+	if code, out := e.upload(e.key, b, false); code != 201 {
+		t.Fatalf("upload: %d %v", code, out)
+	}
+	p = hwData(t, e)
+	x550 := findPart(p, "nic", "Intel Ethernet Controller X550")
+	if x550 == nil || x550.Source != "swhw" || x550.SourceReportID != r.ReportID || x550.Status != "unverified" || x550.ReportKeyName != "Test site" {
+		t.Fatalf("discovered NIC: %+v", x550)
+	}
+	if findPart(p, "cpu", "AMD EPYC 7443P") == nil || countName(p, "cpu", "AMD EPYC 7443P") != 1 {
+		t.Error("EPYC 7443P is in the datasheet and must not be added twice")
+	}
+	before := len(p.Parts)
+	// A benchmark report of the same host adds nothing new; its source would be Test Script.
+	br := report.Sample(report.SampleHosts[1], 61, time.Now())
+	br.Environment.Host.NICs = r.Environment.Host.NICs
+	bb, _ := json.Marshal(br)
+	e.upload(e.key, bb, false)
+	if n := len(hwData(t, e).Parts); n != before {
+		t.Errorf("second report of the same hardware added %d parts", n-before)
+	}
+
+	// Manual entry, duplicate rejection, edit and delete.
+	if r := e.form(e.client, "/hardware", url.Values{"category": {"nic"}, "name": {"Intel E810-XXVDA2"}, "status": {"supported"},
+		"speed": {"25GbE"}, "ports": {"2"}, "driver": {"ice"}, "comment": {"lab tested"}}); r.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create: %d", r.StatusCode)
+	}
+	if r := e.form(e.client, "/hardware", url.Values{"category": {"nic"}, "name": {"intel e810 xxvda2"}, "status": {"supported"}}); r.StatusCode != http.StatusConflict {
+		t.Errorf("duplicate create: %d", r.StatusCode)
+	}
+	if r := e.form(e.client, "/hardware", url.Values{"category": {"nic"}, "name": {"X"}, "status": {"supported"}, "ports": {"many"}}); r.StatusCode != http.StatusBadRequest {
+		t.Errorf("bad ports: %d", r.StatusCode)
+	}
+	p = hwData(t, e)
+	m := findPart(p, "nic", "Intel E810-XXVDA2")
+	if m == nil || m.Source != "manual" || m.CreatedBy != "admin" || m.Attrs.Driver != "ice" || m.Attrs.Ports[0] != 2 {
+		t.Fatalf("manual part: %+v", m)
+	}
+	id := strconv.FormatInt(m.ID, 10)
+	if r := e.form(e.client, "/hardware/"+id, url.Values{"category": {"nic"}, "name": {"Intel E810-XXVDA2"}, "status": {"unsupported"},
+		"comment": {"firmware issue"}}); r.StatusCode != http.StatusSeeOther {
+		t.Fatalf("update: %d", r.StatusCode)
+	}
+	if m = findPart(hwData(t, e), "nic", "Intel E810-XXVDA2"); m.Status != "unsupported" || m.Comment != "firmware issue" || m.UpdatedBy != "admin" {
+		t.Errorf("after edit: %+v", m)
+	}
+	if r := e.form(e.client, "/hardware/"+id, url.Values{"category": {"nic"}, "name": {"Intel X710"}, "status": {"supported"}}); r.StatusCode != http.StatusConflict {
+		t.Errorf("rename onto an existing part: %d", r.StatusCode)
+	}
+	if r := e.form(e.client, "/hardware/"+id+"/delete", nil); r.StatusCode != http.StatusSeeOther {
+		t.Fatalf("delete: %d", r.StatusCode)
+	}
+	if findPart(hwData(t, e), "nic", "Intel E810-XXVDA2") != nil {
+		t.Error("deleted part still listed")
+	}
+
+	// Deleting the source report keeps the part, without a link.
+	e.form(e.client, "/reports/"+r.ReportID+"/delete", nil)
+	if x := findPart(hwData(t, e), "nic", "Intel Ethernet Controller X550"); x == nil || x.SourceReportID != "" {
+		t.Errorf("after report delete: %+v", x)
+	}
+}
+
+func countName(p hwPayload, category, name string) int {
+	n := 0
+	for _, x := range p.Parts {
+		if x.Category == category && x.Name == name {
+			n++
+		}
+	}
+	return n
 }

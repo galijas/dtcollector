@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"dtcollector/internal/auth"
+	"dtcollector/internal/hardware"
 	"dtcollector/internal/report"
 	"dtcollector/internal/store"
 )
@@ -117,5 +118,12 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	s.log.Printf("api: stored %s report %s (%s v%d, %d tests, %d bytes, %s %s) from key %q",
 		sum.Kind, sum.ReportID, sum.ProfileName, sum.ProfileVersion, sum.TestCount, len(raw), sum.SourceName, sum.SourceVersion, k.Name)
+	// The report is stored either way; a failure here only means the HW
+	// Validation list misses its parts, so it is logged, not returned.
+	if n, err := s.st.AddDiscoveredParts(hardware.FromReport(rep), hardware.ReportSource(rep), sum.ReportID); err != nil {
+		s.log.Printf("api: hardware list update for report %s: %v", sum.ReportID, err)
+	} else if n > 0 {
+		s.log.Printf("api: report %s added %d new part(s) to the hardware list", sum.ReportID, n)
+	}
 	writeJSON(w, http.StatusCreated, map[string]string{"id": sum.ReportID})
 }

@@ -57,6 +57,34 @@ Done:
 - Charts: uPlot 1.6.32, bundled in `internal/server/web/static/vendor`
   (no CDN). Colors are the validated categorical palette, light and dark.
 
+## HW Validation (2026-09-30)
+
+- First tab (`/`); the report list moved to `/reports`.
+- Table `hw_parts` (migration 3): category (server_model, cpu, nic, drive,
+  storage_controller), name, status (supported, unsupported, unverified =
+  "Not validated"), comment, attrs (NIC speed/ports/driver, drive type),
+  aliases (texts it was seen as; used for matching and search), source
+  (datasheet, manual, test_script, swhw), source report, created/updated by.
+- Migration 3 seeds the datasheet from `internal/hardware/seed/*.json`
+  (copies of `~/claude/Resources/{Supported,Unsupported} Hardware.json`).
+  A part in both lists is kept once as unsupported (the HPE 331FLR/331i).
+  The seed runs once per database; changing the JSON later only affects new
+  installs.
+- Columns follow what reports can fill: NIC speed, ports seen, Linux driver;
+  drive type. Datasheet-only details (chipset, media, interface, capacities,
+  controller type/chipset/driver) are in the comment.
+- On every stored upload, `hardware.FromReport` extracts parts; parts whose
+  normalized name or alias is already listed are skipped (NIC port counts
+  and empty speed/driver/type are merged in). Hardware-only reports are
+  "SWHW data", benchmark reports "Test Script". Existing reports were not
+  imported, at the user's request.
+- Matching is conservative (exact after normalization), so a lspci-style
+  name like "Intel Ethernet Controller X550" is added next to the
+  datasheet's "Intel X550"; admins merge by deleting one. Smarter matching
+  (by chipset token) is a possible next step.
+- `canEditHardware` in `internal/server/hardware.go` allows every admin;
+  account types will narrow it.
+
 ## Open items
 
 - Units of `host_net_*_bps` (assumed bits/s) and `host_disk_*_bps`

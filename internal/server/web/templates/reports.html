@@ -3,7 +3,7 @@
 <h1>Reports</h1>
 <p class="sub">Benchmark reports from SwarmDialer, and hardware-only reports (host inventory, no tests) from SwarmDialer or the hardware collection script. Select two or more benchmark reports of the same profile version to compare them.</p>
 
-<form class="filters row" method="get" action="/">
+<form class="filters row" method="get" action="/reports">
   <label>Type
     <select name="kind">
       <option value="">All</option>
@@ -34,7 +34,7 @@
   <label>To <input type="date" name="to" value="{{index $d.Q "to"}}"></label>
   <label>Search <input type="search" name="q" value="{{index $d.Q "q"}}" placeholder="CPU, system, disk, note, source"></label>
   <button type="submit">Filter</button>
-  {{if $d.Filtered}}<a class="button" href="/">Clear</a>{{end}}
+  {{if $d.Filtered}}<a class="button" href="/reports">Clear</a>{{end}}
 </form>
 
 {{if $d.Rows}}

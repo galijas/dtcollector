@@ -1,0 +1,51 @@
+{{define "content"}}
+<h1>HW Validation</h1>
+<p class="sub">Hardware parts known to DT Collector and whether each is supported. The list starts with the Supported Hardware datasheet and grows with every uploaded report: parts a report describes that aren't listed yet are added as "Not validated".</p>
+{{with .Data.Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+
+<div class="hw-toolbar">
+  <div class="row hw-filters">
+    <label class="hw-search">Search <input type="search" id="hw-q" placeholder="e.g. E5-2699, X710, PERC H730" autocomplete="off"></label>
+    <label>Type <select id="hw-type"><option value="">All types</option></select></label>
+    <label>Source <select id="hw-source"><option value="">All sources</option></select></label>
+    <label>Status <select id="hw-status"><option value="">All statuses</option></select></label>
+  </div>
+  {{if .Data.CanEdit}}<button class="primary" type="button" id="hw-add">Add hardware</button>{{end}}
+</div>
+
+{{if .Data.CanEdit}}
+<form class="card hw-form" id="hw-form" method="post" action="/hardware" hidden>
+  <h2 id="hw-form-title">Add hardware</h2>
+  <div class="row">
+    <label>Type of hardware
+      <select name="category" id="f-category" required><option value="">Choose a type…</option></select>
+    </label>
+  </div>
+  <div class="stack hw-form-details" id="f-details" hidden>
+    <div class="row">
+      <label class="grow">Name <input type="text" name="name" id="f-name" maxlength="200" required placeholder="As the vendor names it, e.g. Intel X710-DA2"></label>
+      <label>Status <select name="status" id="f-status"></select></label>
+    </div>
+    <div class="row" data-cat="nic" hidden>
+      <label>Speed <input type="text" name="speed" id="f-speed" list="f-speeds" maxlength="20" placeholder="10GbE"></label>
+      <datalist id="f-speeds"><option value="1GbE"><option value="10GbE"><option value="25GbE"><option value="40GbE"><option value="100GbE"></datalist>
+      <label>Ports seen <input type="text" name="ports" id="f-ports" maxlength="40" placeholder="2, 4"></label>
+      <label>Linux driver <input type="text" name="driver" id="f-driver" maxlength="40" placeholder="i40e"></label>
+    </div>
+    <div class="row" data-cat="drive" hidden>
+      <label>Drive type <select name="drive_type" id="f-drive-type"><option value="">Not specified</option></select></label>
+    </div>
+    <label>Comment <textarea name="comment" id="f-comment" rows="3" maxlength="2000" placeholder="Anything worth knowing: known issues, firmware, where it was tested"></textarea></label>
+    <div class="row">
+      <button class="primary" type="submit" id="f-submit">Add to list</button>
+      <button type="button" id="f-cancel">Cancel</button>
+    </div>
+  </div>
+</form>
+{{end}}
+
+<p class="muted" id="hw-count" aria-live="polite"></p>
+<div class="hw-list" id="hw-list" data-hw="{{.Data.JSON}}"></div>
+<noscript><p class="error">The hardware list needs JavaScript.</p></noscript>
+<script src="/static/hardware.js?v={{.Asset}}" defer></script>
+{{end}}

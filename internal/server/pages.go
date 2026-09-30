@@ -38,6 +38,9 @@ var flashes = map[string]string{
 	"revoked":      "API key revoked. Anything using it can no longer upload.",
 	"admindeleted": "Admin account deleted.",
 	"pwchanged":    "Password changed. Log in with the new password.",
+	"hwadded":      "Hardware added to the list.",
+	"hwsaved":      "Hardware entry saved.",
+	"hwdeleted":    "Hardware entry deleted.",
 }
 
 var funcs = template.FuncMap{
@@ -145,7 +148,7 @@ func (s *Server) loadTemplates() error {
 	})
 	s.assetVer = hex.EncodeToString(h.Sum(nil))[:10]
 	s.pages = map[string]*template.Template{}
-	for _, p := range []string{"login.html", "reports.html", "report.html", "compare.html", "keys.html", "accounts.html", "error.html"} {
+	for _, p := range []string{"login.html", "reports.html", "report.html", "compare.html", "keys.html", "accounts.html", "error.html", "hardware.html"} {
 		t, err := template.New("").Funcs(funcs).ParseFS(webFS, "web/templates/base.html", "web/templates/"+p)
 		if err != nil {
 			return fmt.Errorf("template %s: %w", p, err)
@@ -334,7 +337,7 @@ func (s *Server) handleReportDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.log.Printf("report %s deleted by %q", id, adminFrom(r).Username)
-	http.Redirect(w, r, "/?m=deleted", http.StatusSeeOther)
+	http.Redirect(w, r, "/reports?m=deleted", http.StatusSeeOther)
 }
 
 // ---- upload keys ----

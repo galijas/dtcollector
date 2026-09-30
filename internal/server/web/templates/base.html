@@ -23,7 +23,8 @@
   <button class="theme-toggle" id="theme-toggle" type="button">&#9728;</button>
   {{- if .Admin}}
   <nav class="tabs">
-    <a href="/"{{if or (eq .Nav "reports") (eq .Nav "report") (eq .Nav "compare")}} aria-current="page"{{end}}>Reports</a>
+    <a href="/"{{if eq .Nav "hardware"}} aria-current="page"{{end}}>HW Validation</a>
+    <a href="/reports"{{if or (eq .Nav "reports") (eq .Nav "report") (eq .Nav "compare")}} aria-current="page"{{end}}>Reports</a>
     <a href="/keys"{{if eq .Nav "keys"}} aria-current="page"{{end}}>API (Upload) Keys</a>
     <a href="/accounts"{{if eq .Nav "accounts"}} aria-current="page"{{end}}>Accounts</a>
     <form method="post" action="/logout"><button class="logout" type="submit" title="Logged in as {{.Admin.Username}}">Log out</button></form>

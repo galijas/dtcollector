@@ -103,6 +103,13 @@ var migrations = []string{
 	UPDATE reports SET source_version = swarmdialer_version;
 	UPDATE reports SET kind = 'hardware' WHERE profile_name = 'hardware';
 	CREATE INDEX reports_kind ON reports(kind, created_at);`,
+
+	hwSchema,
+}
+
+// migrationHooks run after a migration's SQL, in the same transaction.
+var migrationHooks = map[int]func(*sql.Tx) error{
+	2: seedHardware,
 }
 
 func (s *Store) migrate() error {
@@ -118,6 +125,12 @@ func (s *Store) migrate() error {
 		if _, err := tx.Exec(migrations[i]); err != nil {
 			tx.Rollback()
 			return err
+		}
+		if hook := migrationHooks[i]; hook != nil {
+			if err := hook(tx); err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
 		if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, i+1)); err != nil {
 			tx.Rollback()
