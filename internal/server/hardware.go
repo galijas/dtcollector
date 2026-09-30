@@ -12,9 +12,11 @@ import (
 	"dtcollector/internal/store"
 )
 
-// canEditHardware decides who may add, edit and delete list entries. Every
-// admin can for now; account types will narrow this.
+// canEditHardware: every account may add and edit list entries.
 func canEditHardware(a *store.Admin) bool { return a != nil }
+
+// canDeleteHardware: only Admin accounts may delete list entries.
+func canDeleteHardware(a *store.Admin) bool { return a.IsAdmin() }
 
 // partForm holds submitted values, so a rejected form reopens as entered.
 type partForm struct {
@@ -41,6 +43,7 @@ type hwPayload struct {
 	DriveTypes []string            `json:"drive_types"`
 	Parts      []store.HWPart      `json:"parts"`
 	CanEdit    bool                `json:"can_edit"`
+	CanDelete  bool                `json:"can_delete"`
 	Form       *partForm           `json:"form,omitempty"`
 }
 
@@ -74,7 +77,8 @@ func (s *Server) renderHardware(w http.ResponseWriter, r *http.Request, code int
 	}
 	p := hwPayload{
 		Categories: hardware.Categories, Statuses: options(hardware.Statuses), Sources: options(hardware.Sources),
-		DriveTypes: hardware.DriveTypes, Parts: parts, CanEdit: canEditHardware(adminFrom(r)), Form: form,
+		DriveTypes: hardware.DriveTypes, Parts: parts, CanEdit: canEditHardware(adminFrom(r)),
+		CanDelete: canDeleteHardware(adminFrom(r)), Form: form,
 	}
 	b, err := json.Marshal(p)
 	if err != nil {
@@ -198,8 +202,8 @@ func (s *Server) handlePartUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handlePartDelete(w http.ResponseWriter, r *http.Request) {
 	me := adminFrom(r)
-	if !canEditHardware(me) {
-		s.errorPage(w, r, http.StatusForbidden, "Your account can't change the hardware list.")
+	if !canDeleteHardware(me) {
+		s.errorPage(w, r, http.StatusForbidden, "Only Admin accounts can delete hardware entries.")
 		return
 	}
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)

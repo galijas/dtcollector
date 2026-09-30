@@ -20,6 +20,11 @@ each test's results and time series, and compare hosts side by side.
   by hand, and extended automatically by every uploaded report:
   parts a report describes that aren't listed yet are added as Supported,
   linked to that report.
+- **Account types**: Admin accounts manage accounts (create, reset
+  passwords, change type, delete) and can delete hardware entries and
+  reports; User accounts can use everything else and change their own
+  password. The server enforces this; the last Admin can't be deleted or
+  demoted.
 - **Web interface**: local admin accounts (bcrypt-hashed passwords). Admins
   browse and compare reports and manage API keys and admin accounts. A
   light/dark theme toggle (remembered per browser) sits in the header.

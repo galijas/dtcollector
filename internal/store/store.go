@@ -21,8 +21,17 @@ import (
 var (
 	ErrNotFound  = errors.New("not found")
 	ErrExists    = errors.New("already exists")
-	ErrLastAdmin = errors.New("cannot delete the last admin account")
+	ErrLastAdmin = errors.New("the last Admin account can't be deleted or changed to User")
 )
+
+// Account types. Admins manage accounts and can delete hardware entries and
+// reports; users can do everything else.
+const (
+	RoleAdmin = "admin"
+	RoleUser  = "user"
+)
+
+func ValidRole(r string) bool { return r == RoleAdmin || r == RoleUser }
 
 type Store struct {
 	db *sql.DB
@@ -114,6 +123,9 @@ var migrations = []string{
 	"",
 	"",
 	"",
+
+	// 8: account types. Existing accounts keep full access.
+	`ALTER TABLE admins ADD COLUMN role TEXT NOT NULL DEFAULT 'admin';`,
 }
 
 // migrationHooks run after a migration's SQL, in the same transaction.
@@ -172,16 +184,23 @@ func (s *Store) Backup(dest string) error {
 
 // ---- admins ----
 
+// Admin is an account of either type (the table predates account types).
 type Admin struct {
 	ID           int64
 	Username     string
 	PasswordHash string
+	Role         string
 	CreatedAt    time.Time
 	LastLoginAt  time.Time
 }
 
-func (s *Store) CreateAdmin(username, hash string) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO admins(username, password_hash, created_at) VALUES(?,?,?)`, username, hash, now())
+func (a *Admin) IsAdmin() bool { return a != nil && a.Role == RoleAdmin }
+
+func (s *Store) CreateAdmin(username, hash, role string) (int64, error) {
+	if !ValidRole(role) {
+		return 0, fmt.Errorf("invalid role %q", role)
+	}
+	res, err := s.db.Exec(`INSERT INTO admins(username, password_hash, role, created_at) VALUES(?,?,?,?)`, username, hash, role, now())
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return 0, ErrExists
@@ -191,12 +210,12 @@ func (s *Store) CreateAdmin(username, hash string) (int64, error) {
 	return res.LastInsertId()
 }
 
-const adminCols = `id, username, password_hash, created_at, last_login_at`
+const adminCols = `id, username, password_hash, role, created_at, last_login_at`
 
 func scanAdmin(row interface{ Scan(...any) error }) (*Admin, error) {
 	var a Admin
 	var created, last sql.NullString
-	if err := row.Scan(&a.ID, &a.Username, &a.PasswordHash, &created, &last); err != nil {
+	if err := row.Scan(&a.ID, &a.Username, &a.PasswordHash, &a.Role, &created, &last); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -257,14 +276,57 @@ func (s *Store) DeleteAdmin(id int64) error {
 		return err
 	}
 	defer tx.Rollback()
-	var n int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM admins`).Scan(&n); err != nil {
+	if err := keepAnAdmin(tx, id); err != nil {
 		return err
 	}
-	if n <= 1 {
+	res, err := tx.Exec(`DELETE FROM admins WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return tx.Commit()
+}
+
+// keepAnAdmin refuses when account id is the only Admin left.
+func keepAnAdmin(tx *sql.Tx, id int64) error {
+	var role string
+	if err := tx.QueryRow(`SELECT role FROM admins WHERE id = ?`, id).Scan(&role); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if role != RoleAdmin {
+		return nil
+	}
+	var admins int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM admins WHERE role = ?`, RoleAdmin).Scan(&admins); err != nil {
+		return err
+	}
+	if admins <= 1 {
 		return ErrLastAdmin
 	}
-	res, err := tx.Exec(`DELETE FROM admins WHERE id = ?`, id)
+	return nil
+}
+
+// SetAdminRole changes an account's type; the last Admin can't become a User.
+func (s *Store) SetAdminRole(id int64, role string) error {
+	if !ValidRole(role) {
+		return fmt.Errorf("invalid role %q", role)
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if role == RoleUser {
+		if err := keepAnAdmin(tx, id); err != nil {
+			return err
+		}
+	}
+	res, err := tx.Exec(`UPDATE admins SET role = ? WHERE id = ?`, role, id)
 	if err != nil {
 		return err
 	}
@@ -290,7 +352,7 @@ func (s *Store) CreateSession(tokenHash string, adminID int64, ttl time.Duration
 
 // SessionAdmin returns the admin owning an unexpired session.
 func (s *Store) SessionAdmin(tokenHash string) (*Admin, error) {
-	return scanAdmin(s.db.QueryRow(`SELECT a.id, a.username, a.password_hash, a.created_at, a.last_login_at
+	return scanAdmin(s.db.QueryRow(`SELECT a.id, a.username, a.password_hash, a.role, a.created_at, a.last_login_at
 		FROM sessions s JOIN admins a ON a.id = s.admin_id
 		WHERE s.token_hash = ? AND s.expires_at > ?`, tokenHash, now()))
 }

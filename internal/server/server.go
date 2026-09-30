@@ -77,13 +77,13 @@ func New(cfg Config) (*Server, error) {
 	ui.HandleFunc("GET /howto/swhw", s.admin(s.handleHowtoSWHW))
 	ui.HandleFunc("POST /hardware", s.admin(s.handlePartCreate))
 	ui.HandleFunc("POST /hardware/{id}", s.admin(s.handlePartUpdate))
-	ui.HandleFunc("POST /hardware/{id}/delete", s.admin(s.handlePartDelete))
+	ui.HandleFunc("POST /hardware/{id}/delete", s.adminOnly(s.handlePartDelete))
 
 	ui.HandleFunc("GET /reports", s.admin(s.handleReports))
 	ui.HandleFunc("GET /reports/{id}", s.admin(s.handleReport))
 	ui.HandleFunc("GET /reports/{id}/json", s.admin(s.handleReportJSON))
 	ui.HandleFunc("POST /reports/{id}/note", s.admin(s.handleReportNote))
-	ui.HandleFunc("POST /reports/{id}/delete", s.admin(s.handleReportDelete))
+	ui.HandleFunc("POST /reports/{id}/delete", s.adminOnly(s.handleReportDelete))
 	ui.HandleFunc("GET /compare", s.admin(s.handleCompare))
 
 	ui.HandleFunc("GET /keys", s.admin(s.handleKeys))
@@ -91,9 +91,10 @@ func New(cfg Config) (*Server, error) {
 	ui.HandleFunc("POST /keys/{id}/revoke", s.admin(s.handleKeyRevoke))
 
 	ui.HandleFunc("GET /accounts", s.admin(s.handleAccounts))
-	ui.HandleFunc("POST /accounts", s.admin(s.handleAdminCreate))
-	ui.HandleFunc("POST /accounts/{id}/reset", s.admin(s.handleAdminReset))
-	ui.HandleFunc("POST /accounts/{id}/delete", s.admin(s.handleAdminDelete))
+	ui.HandleFunc("POST /accounts", s.adminOnly(s.handleAdminCreate))
+	ui.HandleFunc("POST /accounts/{id}/reset", s.adminOnly(s.handleAdminReset))
+	ui.HandleFunc("POST /accounts/{id}/role", s.adminOnly(s.handleAdminRole))
+	ui.HandleFunc("POST /accounts/{id}/delete", s.adminOnly(s.handleAdminDelete))
 	ui.HandleFunc("POST /accounts/password", s.admin(s.handlePasswordChange))
 	for _, old := range []string{"GET /admins", "GET /account"} {
 		ui.Handle(old, http.RedirectHandler("/accounts", http.StatusMovedPermanently))

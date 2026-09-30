@@ -7,7 +7,7 @@
   </div>
   <div class="row">
     <a class="button" href="/reports/{{$m.ID}}/json?download=1">Download JSON</a>
-    <form class="inline" method="post" action="/reports/{{$m.ID}}/delete" data-confirm="Delete this report permanently?"><button class="danger" type="submit">Delete report</button></form>
+    {{if .Admin.IsAdmin}}<form class="inline" method="post" action="/reports/{{$m.ID}}/delete" data-confirm="Delete this report permanently?"><button class="danger" type="submit">Delete report</button></form>{{end}}
   </div>
 </div>
 

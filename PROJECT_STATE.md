@@ -108,6 +108,16 @@ Done:
 - `canEditHardware` in `internal/server/hardware.go` allows every admin;
   account types will narrow it.
 
+## Account types (2026-09-30)
+
+- Migration 8 adds `admins.role` (`admin` | `user`); existing accounts
+  became Admin. Admin-only routes use `s.adminOnly` (account create,
+  reset, role change, delete; report delete; hardware delete); everything
+  else uses `s.admin` (any logged-in account). `canEditHardware` allows
+  every account, `canDeleteHardware` Admins only.
+- The last Admin can't be deleted or changed to User; nobody can change
+  their own type. `dtcollector create-admin` creates Admin accounts.
+
 ## Open items
 
 - Units of `host_net_*_bps` (assumed bits/s) and `host_disk_*_bps`

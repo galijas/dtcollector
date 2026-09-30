@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"html"
 	"io"
 	"log"
@@ -51,7 +52,7 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	h, _ := auth.HashPassword("correct horse battery")
-	if _, err := st.CreateAdmin("admin", h); err != nil {
+	if _, err := st.CreateAdmin("admin", h, store.RoleAdmin); err != nil {
 		t.Fatal(err)
 	}
 	e := &env{t: t, st: st, ts: ts, key: key, keyID: id}
@@ -260,7 +261,7 @@ func TestPages(t *testing.T) {
 		"/reports/" + ids[0]:                     {"ramp_norec_low", "Environment", "pbxware_mt", "Target reached"},
 		"/compare?ids=" + strings.Join(ids, ","): {"Compare 3 reports", "Max concurrent calls", "best", "MP3 conversion delay avg"},
 		"/keys":                                  {"Test site", "Active", "API (Upload) Keys"},
-		"/accounts":                              {"admin", "(you)", "Change password", "Create admin"},
+		"/accounts":                              {"admin", "(you)", "Change password", "Create account"},
 	}
 	for p, want := range checks {
 		resp, body := e.get(e.client, p)
@@ -330,7 +331,7 @@ func TestKeyAndAdminManagement(t *testing.T) {
 		t.Fatal("full key shown again on the keys page")
 	}
 
-	if r := e.form(e.client, "/accounts", url.Values{"username": {"second"}}); r.StatusCode != 200 {
+	if r := e.form(e.client, "/accounts", url.Values{"username": {"second"}, "role": {"admin"}}); r.StatusCode != 200 {
 		t.Fatalf("create admin: %d", r.StatusCode)
 	}
 	me, _ := e.st.AdminByUsername("admin")
@@ -593,5 +594,109 @@ func TestHowtoSWHW(t *testing.T) {
 	}
 	if _, page := e.get(e.client, "/"); !strings.Contains(page, `href="/howto/swhw"`) {
 		t.Error("HW Validation page has no HowTo button")
+	}
+}
+
+// login returns a client logged in as the given account.
+func (e *env) login(t *testing.T, username, password string) *http.Client {
+	t.Helper()
+	jar, _ := cookiejar.New(nil)
+	c := &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	if r := e.form(c, "/login", url.Values{"username": {username}, "password": {password}}); r.StatusCode != http.StatusSeeOther {
+		t.Fatalf("login %s: %d", username, r.StatusCode)
+	}
+	return c
+}
+
+func TestAccountTypes(t *testing.T) {
+	e := newEnv(t)
+	h, _ := auth.HashPassword("user password 123")
+	uid, err := e.st.CreateAdmin("viewer", h, store.RoleUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := e.login(t, "viewer", "user password 123")
+
+	// Accounts: a User sees only the password form and can't manage accounts.
+	_, page := e.get(user, "/accounts")
+	if !strings.Contains(page, "Change password") || strings.Contains(page, "Create account") || strings.Contains(page, "Reset password") {
+		t.Error("User accounts page shows account management")
+	}
+	for path, v := range map[string]url.Values{
+		"/accounts":                        {"username": {"x1"}, "role": {"admin"}},
+		"/accounts/" + itoa(uid) + "/role": {"role": {"admin"}},
+		"/accounts/1/reset":                nil,
+		"/accounts/1/delete":               nil,
+	} {
+		if r := e.form(user, path, v); r.StatusCode != http.StatusForbidden {
+			t.Errorf("User POST %s: %d", path, r.StatusCode)
+		}
+	}
+	if r := e.form(user, "/accounts/password", url.Values{"current": {"user password 123"}, "password": {"new user password 1"},
+		"confirm": {"new user password 1"}}); r.StatusCode != http.StatusSeeOther {
+		t.Errorf("User password change: %d", r.StatusCode)
+	}
+	user = e.login(t, "viewer", "new user password 1")
+
+	// Hardware: a User can add and edit, not delete.
+	if r := e.form(user, "/hardware", url.Values{"category": {"cpu"}, "name": {"Test CPU 9000"}, "status": {"supported"}}); r.StatusCode != http.StatusSeeOther {
+		t.Fatalf("User add hardware: %d", r.StatusCode)
+	}
+	p := hwData(t, e)
+	part := findPart(p, "cpu", "Test CPU 9000")
+	if part == nil || part.CreatedBy != "viewer" {
+		t.Fatalf("User's part: %+v", part)
+	}
+	id := strconv.FormatInt(part.ID, 10)
+	if r := e.form(user, "/hardware/"+id, url.Values{"category": {"cpu"}, "name": {"Test CPU 9000"}, "status": {"unsupported"}}); r.StatusCode != http.StatusSeeOther {
+		t.Errorf("User edit hardware: %d", r.StatusCode)
+	}
+	if r := e.form(user, "/hardware/"+id+"/delete", nil); r.StatusCode != http.StatusForbidden {
+		t.Errorf("User delete hardware: %d", r.StatusCode)
+	}
+	resp, body := e.get(user, "/")
+	i := strings.Index(body, `data-hw="`)
+	rest := body[i+len(`data-hw="`):]
+	var up hwPayload
+	json.Unmarshal([]byte(html.UnescapeString(rest[:strings.Index(rest, `"`)])), &up)
+	if resp.StatusCode != 200 || !up.CanEdit || up.CanDelete {
+		t.Errorf("User hardware permissions: edit %v delete %v", up.CanEdit, up.CanDelete)
+	}
+
+	// Reports: a User can't delete them; the button isn't shown.
+	r, b := sample(80, 0)
+	e.upload(e.key, b, false)
+	if _, page := e.get(user, "/reports/"+r.ReportID); strings.Contains(page, "Delete report") {
+		t.Error("User sees Delete report")
+	}
+	if resp := e.form(user, "/reports/"+r.ReportID+"/delete", nil); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("User delete report: %d", resp.StatusCode)
+	}
+	if resp := e.form(user, "/reports/"+r.ReportID+"/note", url.Values{"note": {"rack 4"}}); resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("User report note: %d", resp.StatusCode)
+	}
+
+	// Admin: can do all of it, and the last Admin is protected.
+	if resp := e.form(e.client, "/hardware/"+id+"/delete", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("Admin delete hardware: %d", resp.StatusCode)
+	}
+	if resp := e.form(e.client, "/accounts/"+itoa(uid)+"/role", url.Values{"role": {"admin"}}); resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("Admin promote: %d", resp.StatusCode)
+	}
+	me, _ := e.st.AdminByUsername("admin")
+	if resp := e.form(e.client, "/accounts/"+itoa(me.ID)+"/role", url.Values{"role": {"user"}}); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Admin demoting themselves: %d", resp.StatusCode)
+	}
+	if err := e.st.SetAdminRole(uid, store.RoleUser); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.SetAdminRole(me.ID, store.RoleUser); !errors.Is(err, store.ErrLastAdmin) {
+		t.Errorf("demoting the last Admin: %v", err)
+	}
+	if err := e.st.DeleteAdmin(me.ID); !errors.Is(err, store.ErrLastAdmin) {
+		t.Errorf("deleting the last Admin: %v", err)
+	}
+	if resp := e.form(e.client, "/reports/"+r.ReportID+"/delete", nil); resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("Admin delete report: %d", resp.StatusCode)
 	}
 }

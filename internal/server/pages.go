@@ -36,7 +36,8 @@ var flashes = map[string]string{
 	"note":         "Note saved.",
 	"deleted":      "Report deleted.",
 	"revoked":      "API key revoked. Anything using it can no longer upload.",
-	"admindeleted": "Admin account deleted.",
+	"admindeleted": "Account deleted.",
+	"rolechanged":  "Account type changed.",
 	"pwchanged":    "Password changed. Log in with the new password.",
 	"hwadded":      "Hardware added to the list.",
 	"hwsaved":      "Hardware entry saved.",
@@ -44,6 +45,12 @@ var flashes = map[string]string{
 }
 
 var funcs = template.FuncMap{
+	"role": func(r string) string {
+		if r == store.RoleAdmin {
+			return "Admin"
+		}
+		return "User"
+	},
 	"ts": func(t time.Time) string {
 		if t.IsZero() {
 			return "never"
@@ -406,12 +413,14 @@ type adminsData struct {
 }
 
 func (s *Server) renderAdmins(w http.ResponseWriter, r *http.Request, code int, d adminsData) {
-	admins, err := s.st.ListAdmins()
-	if err != nil {
-		s.internalError(w, r, "list admins", err)
-		return
+	if adminFrom(r).IsAdmin() {
+		admins, err := s.st.ListAdmins()
+		if err != nil {
+			s.internalError(w, r, "list admins", err)
+			return
+		}
+		d.Admins = admins
 	}
-	d.Admins = admins
 	s.render(w, r, code, "accounts.html", "Accounts", d)
 }
 
@@ -421,8 +430,13 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAdminCreate(w http.ResponseWriter, r *http.Request) {
 	username := strings.TrimSpace(r.PostFormValue("username"))
+	role := r.PostFormValue("role")
 	if !usernameRe.MatchString(username) {
 		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{Error: "Usernames are 2 to 32 characters: letters, digits, '.', '_' or '-'."})
+		return
+	}
+	if !store.ValidRole(role) {
+		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{Error: "Choose the account type: Admin or User."})
 		return
 	}
 	pw := auth.GeneratePassword()
@@ -431,15 +445,15 @@ func (s *Server) handleAdminCreate(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, "hash password", err)
 		return
 	}
-	if _, err := s.st.CreateAdmin(username, hash); err != nil {
+	if _, err := s.st.CreateAdmin(username, hash, role); err != nil {
 		if errors.Is(err, store.ErrExists) {
-			s.renderAdmins(w, r, http.StatusConflict, adminsData{Error: "An admin named " + username + " already exists."})
+			s.renderAdmins(w, r, http.StatusConflict, adminsData{Error: "An account named " + username + " already exists."})
 			return
 		}
-		s.internalError(w, r, "create admin", err)
+		s.internalError(w, r, "create account", err)
 		return
 	}
-	s.log.Printf("admin %q created by %q", username, adminFrom(r).Username)
+	s.log.Printf("account %q (%s) created by %q", username, role, adminFrom(r).Username)
 	s.renderAdmins(w, r, http.StatusOK, adminsData{NewUser: username, NewPassword: pw})
 }
 
@@ -452,11 +466,11 @@ func (s *Server) handleAdminReset(w http.ResponseWriter, r *http.Request) {
 	}
 	target, err := s.st.AdminByID(id)
 	if errors.Is(err, store.ErrNotFound) {
-		s.errorPage(w, r, http.StatusNotFound, "No admin with that ID.")
+		s.errorPage(w, r, http.StatusNotFound, "No account with that ID.")
 		return
 	}
 	if err != nil {
-		s.internalError(w, r, "get admin", err)
+		s.internalError(w, r, "get account", err)
 		return
 	}
 	pw := auth.GeneratePassword()
@@ -468,7 +482,7 @@ func (s *Server) handleAdminReset(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, "reset password", err)
 		return
 	}
-	s.log.Printf("password of admin %q reset by %q", target.Username, me.Username)
+	s.log.Printf("password of account %q reset by %q", target.Username, me.Username)
 	s.renderAdmins(w, r, http.StatusOK, adminsData{NewUser: target.Username, NewPassword: pw, Reset: true})
 }
 
@@ -476,23 +490,62 @@ func (s *Server) handleAdminDelete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	me := adminFrom(r)
 	if id == me.ID {
-		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{Error: "You can't delete your own account. Log in as another admin to do that."})
+		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{Error: "You can't delete your own account. Log in as another Admin to do that."})
 		return
 	}
 	err := s.st.DeleteAdmin(id)
 	switch {
 	case errors.Is(err, store.ErrLastAdmin):
-		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{Error: "The last admin account can't be deleted."})
+		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{Error: "The last Admin account can't be deleted."})
 		return
 	case errors.Is(err, store.ErrNotFound):
-		s.errorPage(w, r, http.StatusNotFound, "No admin with that ID.")
+		s.errorPage(w, r, http.StatusNotFound, "No account with that ID.")
 		return
 	case err != nil:
-		s.internalError(w, r, "delete admin", err)
+		s.internalError(w, r, "delete account", err)
 		return
 	}
-	s.log.Printf("admin %d deleted by %q", id, me.Username)
+	s.log.Printf("account %d deleted by %q", id, me.Username)
 	http.Redirect(w, r, "/accounts?m=admindeleted", http.StatusSeeOther)
+}
+
+func (s *Server) handleAdminRole(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	me := adminFrom(r)
+	role := r.PostFormValue("role")
+	if id == me.ID {
+		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{Error: "You can't change your own account type. Ask another Admin to do that."})
+		return
+	}
+	if !store.ValidRole(role) {
+		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{Error: "Choose the account type: Admin or User."})
+		return
+	}
+	err := s.st.SetAdminRole(id, role)
+	switch {
+	case errors.Is(err, store.ErrLastAdmin):
+		s.renderAdmins(w, r, http.StatusBadRequest, adminsData{Error: "The last Admin account can't be changed to User."})
+		return
+	case errors.Is(err, store.ErrNotFound):
+		s.errorPage(w, r, http.StatusNotFound, "No account with that ID.")
+		return
+	case err != nil:
+		s.internalError(w, r, "change account type", err)
+		return
+	}
+	s.log.Printf("account %d changed to %s by %q", id, role, me.Username)
+	http.Redirect(w, r, "/accounts?m=rolechanged", http.StatusSeeOther)
+}
+
+// adminOnly allows the request for Admin accounts only.
+func (s *Server) adminOnly(next http.HandlerFunc) http.HandlerFunc {
+	return s.admin(func(w http.ResponseWriter, r *http.Request) {
+		if !adminFrom(r).IsAdmin() {
+			s.errorPage(w, r, http.StatusForbidden, "Only Admin accounts can do this.")
+			return
+		}
+		next(w, r)
+	})
 }
 
 func (s *Server) handlePasswordChange(w http.ResponseWriter, r *http.Request) {

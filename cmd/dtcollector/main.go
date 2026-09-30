@@ -219,7 +219,7 @@ func cmdAdmin(args []string, reset bool) error {
 		if err := st.SetAdminPassword(a.ID, hash); err != nil {
 			return err
 		}
-	} else if _, err := st.CreateAdmin(*username, hash); err != nil {
+	} else if _, err := st.CreateAdmin(*username, hash, store.RoleAdmin); err != nil {
 		return fmt.Errorf("create admin %q: %w", *username, err)
 	}
 	fmt.Printf("Username: %s\nPassword: %s\n", *username, pw)

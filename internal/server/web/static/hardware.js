@@ -96,10 +96,13 @@
 
   function actionsCell(p) {
     var td = el('td', 'nowrap hw-actions');
-    var edit = el('button', null, 'Edit');
-    edit.type = 'button';
-    edit.addEventListener('click', function () { openForm(p); });
-    td.appendChild(edit);
+    if (D.can_edit) {
+      var edit = el('button', null, 'Edit');
+      edit.type = 'button';
+      edit.addEventListener('click', function () { openForm(p); });
+      td.appendChild(edit);
+    }
+    if (!D.can_delete) return td;
     var f = el('form', 'inline');
     f.method = 'post';
     f.action = '/hardware/' + p.id + '/delete';
@@ -140,7 +143,7 @@
         var tbl = el('table', 'hw-table');
         var hr = el('tr');
         ['Name'].concat(c.columns.map(function (x) { return x.label; })).concat(['Status', 'Comment', 'Source'])
-          .concat(D.can_edit ? [''] : []).forEach(function (h) { hr.appendChild(el('th', null, h)); });
+          .concat(D.can_edit || D.can_delete ? [''] : []).forEach(function (h) { hr.appendChild(el('th', null, h)); });
         var th = el('thead'); th.appendChild(hr); tbl.appendChild(th);
         var tb = el('tbody');
         rows.forEach(function (p) {
@@ -154,7 +157,7 @@
           var st = el('td', 'nowrap'); st.appendChild(statusPill(p)); tr.appendChild(st);
           tr.appendChild(el('td', 'hw-comment', p.comment));
           tr.appendChild(sourceCell(p));
-          if (D.can_edit) tr.appendChild(actionsCell(p));
+          if (D.can_edit || D.can_delete) tr.appendChild(actionsCell(p));
           tb.appendChild(tr);
         });
         tbl.appendChild(tb);

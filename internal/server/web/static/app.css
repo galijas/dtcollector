@@ -219,6 +219,10 @@ td.best::after { content: " ★"; color: var(--ok); font-weight: 400; font-size:
 .uplot .u-cursor-x { border-right: 1px solid var(--muted) !important; }
 .uplot .u-cursor-y { display: none; }
 
+.role-pill { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; }
+.role-pill.admin { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.role-pill.user { background: var(--border); color: var(--muted); }
+
 /* How-to pages */
 ol.howto { display: flex; flex-direction: column; gap: 14px; padding-left: 1.4rem; max-width: 64rem; margin: 1rem 0 0; }
 ol.howto > li::marker { font-family: var(--mono); font-weight: 600; color: var(--accent); }

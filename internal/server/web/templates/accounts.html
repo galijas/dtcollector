@@ -1,16 +1,21 @@
 {{define "content"}}
+{{$isAdmin := .Admin.IsAdmin}}
 <h1>Accounts</h1>
-<p class="sub">Admin accounts for this interface. Every admin can browse and compare reports, manage API keys and manage admin accounts.</p>
+{{if $isAdmin}}
+<p class="sub">Accounts for this interface. <strong>Admin</strong> accounts manage accounts and can delete hardware entries and reports; <strong>User</strong> accounts can use everything else and change their own password.</p>
+{{else}}
+<p class="sub">You're logged in with a User account. Accounts are managed by Admin accounts.</p>
+{{end}}
 {{with .Data.Error}}<p class="error" role="alert">{{.}}</p>{{end}}
 {{with .Data.NewPassword}}
 <div class="once" role="status">
-  <strong>{{if $.Data.Reset}}New password for{{else}}Admin account created:{{end}} {{$.Data.NewUser}}.</strong> Copy the password now; it is not shown again. They can change it in this tab after logging in.
+  <strong>{{if $.Data.Reset}}New password for{{else}}Account created:{{end}} {{$.Data.NewUser}}.</strong> Copy the password now; it is not shown again. They can change it in this tab after logging in.
   <div class="secret"><code id="newpw">{{.}}</code><button type="button" data-copy="#newpw">Copy</button></div>
 </div>
 {{end}}
 
 <h2>Change password</h2>
-<p class="sub">Your account: <strong>{{.Admin.Username}}</strong>. Changing your password logs you out everywhere.</p>
+<p class="sub">Your account: <strong>{{.Admin.Username}}</strong> ({{role .Admin.Role}}). Changing your password logs you out everywhere.</p>
 {{with .Data.PWError}}<p class="error" role="alert">{{.}}</p>{{end}}
 <form class="card stack" method="post" action="/accounts/password">
   <label>Current password <input type="password" name="current" autocomplete="current-password" required></label>
@@ -19,27 +24,41 @@
   <div><button class="primary" type="submit">Change password</button></div>
 </form>
 
-<h2>Create admin account</h2>
+{{if $isAdmin}}
+<h2>Create account</h2>
 <form class="card row" method="post" action="/accounts">
   <label>Username <input type="text" name="username" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{1,31}" required></label>
-  <button class="primary" type="submit">Create admin</button>
+  <label>Account type
+    <select name="role">
+      <option value="user" selected>User</option>
+      <option value="admin">Admin</option>
+    </select>
+  </label>
+  <button class="primary" type="submit">Create account</button>
   <span class="muted">A random password is generated and shown once.</span>
 </form>
 
-<h2>Admin accounts</h2>
+<h2>Accounts</h2>
 <div class="table-wrap"><table>
-<thead><tr><th>Username</th><th>Created</th><th>Last login</th><th></th></tr></thead>
+<thead><tr><th>Username</th><th>Type</th><th>Created</th><th>Last login</th><th></th></tr></thead>
 <tbody>
 {{range .Data.Admins}}
 <tr>
   <td>{{.Username}}{{if eq .ID $.Admin.ID}} <span class="muted">(you)</span>{{end}}</td>
+  <td><span class="role-pill {{.Role}}">{{role .Role}}</span></td>
   <td class="nowrap">{{ts .CreatedAt}}</td>
   <td class="nowrap">{{ts .LastLoginAt}}</td>
   <td class="nowrap">{{if ne .ID $.Admin.ID}}
+    {{if .IsAdmin}}
+    <form class="inline" method="post" action="/accounts/{{.ID}}/role" data-confirm="Change {{.Username}} to a User account? They will no longer manage accounts or delete hardware entries and reports."><input type="hidden" name="role" value="user"><button type="submit">Make User</button></form>
+    {{else}}
+    <form class="inline" method="post" action="/accounts/{{.ID}}/role" data-confirm="Change {{.Username}} to an Admin account?"><input type="hidden" name="role" value="admin"><button type="submit">Make Admin</button></form>
+    {{end}}
     <form class="inline" method="post" action="/accounts/{{.ID}}/reset" data-confirm="Reset the password of {{.Username}}? Their current sessions end."><button type="submit">Reset password</button></form>
-    <form class="inline" method="post" action="/accounts/{{.ID}}/delete" data-confirm="Delete admin account {{.Username}}?"><button class="danger" type="submit">Delete</button></form>
+    <form class="inline" method="post" action="/accounts/{{.ID}}/delete" data-confirm="Delete the account {{.Username}}?"><button class="danger" type="submit">Delete</button></form>
   {{end}}</td>
 </tr>
 {{end}}
 </tbody></table></div>
+{{end}}
 {{end}}
