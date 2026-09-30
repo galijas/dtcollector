@@ -120,3 +120,26 @@ func keys(m map[string]Part) []string {
 	}
 	return out
 }
+
+func TestSWAnalytics(t *testing.T) {
+	parts, err := SWAnalytics()
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := map[string]int{}
+	for _, p := range parts {
+		count[p.Category]++
+		if p.Source != SourceSWAnalytics || p.Status != StatusSupported || p.Name == "" {
+			t.Fatalf("bad part %+v", p)
+		}
+	}
+	want := map[string]int{CatServer: 98, CatCPU: 134, CatNIC: 42, CatController: 23}
+	for c, n := range want {
+		if count[c] != n {
+			t.Errorf("%s: %d parts, want %d", c, count[c], n)
+		}
+	}
+	if Key(CatCPU, "Intel(R) Xeon(R) CPU E5-2630 0 @ 2.30GHz") != Key(CatCPU, "Intel Xeon E5-2630") {
+		t.Error("the first-generation E5 \" 0\" suffix must not affect matching")
+	}
+}

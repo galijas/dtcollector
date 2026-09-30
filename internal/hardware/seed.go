@@ -11,7 +11,7 @@ import (
 // sheets (~/claude/Resources/Hardware/build_hardware_lists.py). Imported once,
 // when the database is created or upgraded to the HW Validation schema.
 //
-//go:embed seed/supported-hardware.json seed/unsupported-hardware.json
+//go:embed seed/supported-hardware.json seed/unsupported-hardware.json seed/sw-analytics-hardware.json
 var seedFS embed.FS
 
 type seedEntry struct {
@@ -30,6 +30,7 @@ type seedEntry struct {
 	Interface  string   `json:"interface"`
 	FormFactor string   `json:"form_factor"`
 	Capacities []string `json:"capacities"`
+	Count      int      `json:"count"`
 }
 
 type seedFile struct {
@@ -40,6 +41,10 @@ type seedFile struct {
 	NICs1G       []seedEntry `json:"nics_1g"`
 	Drives       []seedEntry `json:"drives"`
 	Controllers  []seedEntry `json:"storage_controllers"`
+	Period       struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	} `json:"period"`
 }
 
 func deref(p *string) string {
@@ -66,8 +71,8 @@ func joinComment(parts ...string) string {
 	return strings.Join(out, " ")
 }
 
-func convert(cat string, e seedEntry, status string) Part {
-	p := Part{Category: cat, Name: e.Name, Status: status, Source: SourceDatasheet}
+func convert(cat string, e seedEntry, status, source string) Part {
+	p := Part{Category: cat, Name: e.Name, Status: status, Source: source}
 	// Aliases with and without the vendor, so report strings like
 	// "Supermicro SYS-1029TP-DC0R" match a sheet's "SYS-1029TP-DC0R".
 	for _, a := range e.Aliases {
@@ -102,11 +107,16 @@ func convert(cat string, e seedEntry, status string) Part {
 	return p
 }
 
-func (f *seedFile) parts(status string) []Part {
+func (f *seedFile) parts(status, source string) []Part {
 	var out []Part
 	add := func(cat string, es []seedEntry) {
 		for _, e := range es {
-			out = append(out, convert(cat, e, status))
+			p := convert(cat, e, status, source)
+			if source == SourceSWAnalytics && e.Count > 0 {
+				p.Comment = joinComment(p.Comment, fmt.Sprintf("SW Analytics count: %d (highest daily value, %s to %s).",
+					e.Count, f.Period.From, f.Period.To))
+			}
+			out = append(out, p)
 		}
 	}
 	add(CatServer, f.ServerModels)
@@ -135,14 +145,14 @@ func Seed() ([]Part, error) {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
 	}
-	out := uns.parts(StatusUnsupported)
+	out := uns.parts(StatusUnsupported, SourceDatasheet)
 	index := map[string]int{}
 	for i := range out {
 		for _, k := range out[i].Keys() {
 			index[out[i].Category+"/"+k] = i
 		}
 	}
-	for _, p := range sup.parts(StatusSupported) {
+	for _, p := range sup.parts(StatusSupported, SourceDatasheet) {
 		dup := -1
 		for _, k := range p.Keys() {
 			if i, ok := index[p.Category+"/"+k]; ok {
@@ -172,4 +182,20 @@ func appendUnique(list []string, s string) []string {
 		}
 	}
 	return append(list, s)
+}
+
+// SWAnalytics returns the hardware reported by SERVERware installations
+// (SW Analytics), filtered to physical server hardware
+// (~/claude/Resources/Hardware/build_sw_analytics.py). Parts the list already
+// has are merged into the existing entry by the store.
+func SWAnalytics() ([]Part, error) {
+	b, err := seedFS.ReadFile("seed/sw-analytics-hardware.json")
+	if err != nil {
+		return nil, err
+	}
+	var f seedFile
+	if err := json.Unmarshal(b, &f); err != nil {
+		return nil, fmt.Errorf("sw-analytics-hardware.json: %w", err)
+	}
+	return f.parts(StatusSupported, SourceSWAnalytics), nil
 }

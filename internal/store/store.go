@@ -105,11 +105,14 @@ var migrations = []string{
 	CREATE INDEX reports_kind ON reports(kind, created_at);`,
 
 	hwSchema,
+
+	`CREATE INDEX hw_parts_source ON hw_parts(source);`,
 }
 
 // migrationHooks run after a migration's SQL, in the same transaction.
 var migrationHooks = map[int]func(*sql.Tx) error{
 	2: seedHardware,
+	3: seedSWAnalytics,
 }
 
 func (s *Store) migrate() error {

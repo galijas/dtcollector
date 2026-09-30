@@ -86,6 +86,7 @@
     } else {
       var sp = el('span', 'hw-source', label);
       if (p.source === 'manual') sp.title = 'Entered by ' + (p.created_by || 'unknown') + ' on ' + fmtTime(p.created_at);
+      else if (p.source === 'sw_analytics') sp.title = 'Reported by SERVERware installations (SW Analytics)';
       else sp.title = 'Imported from the Supported / Not Supported hardware sheets';
       if (p.updated_by && p.updated_by !== p.created_by) sp.title += '. Last edited by ' + p.updated_by + ' on ' + fmtTime(p.updated_at);
       td.appendChild(sp);

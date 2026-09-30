@@ -53,6 +53,68 @@ func seedHardware(tx *sql.Tx) error {
 	return nil
 }
 
+// seedSWAnalytics (migration 4) adds the SW Analytics list. A part already
+// listed keeps its row and source; it gains the SW Analytics names as aliases
+// and its SW Analytics count in the comment.
+func seedSWAnalytics(tx *sql.Tx) error {
+	parts, err := hardware.SWAnalytics()
+	if err != nil {
+		return err
+	}
+	indexes := map[string]map[string]*hardware.Part{}
+	for i := range parts {
+		p := &parts[i]
+		idx, ok := indexes[p.Category]
+		if !ok {
+			if idx, err = keyIndex(tx, p.Category); err != nil {
+				return err
+			}
+			indexes[p.Category] = idx
+		}
+		if existing := conflict(idx, p); existing != nil {
+			var comment string
+			if err := tx.QueryRow(`SELECT comment FROM hw_parts WHERE id = ?`, existing.ID).Scan(&comment); err != nil {
+				return err
+			}
+			for _, a := range p.Aliases {
+				existing.Aliases = appendUnique(existing.Aliases, a)
+			}
+			if c := swCount(p.Comment); c != "" && !strings.Contains(comment, c) {
+				comment = strings.TrimSpace(comment + " Also in " + c)
+			}
+			aliases, _ := json.Marshal(existing.Aliases)
+			if _, err := tx.Exec(`UPDATE hw_parts SET aliases = ?, comment = ? WHERE id = ?`, string(aliases), comment, existing.ID); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, err := insertPart(tx, p); err != nil {
+			return fmt.Errorf("seed SW Analytics %s %q: %w", p.Category, p.Name, err)
+		}
+		for _, k := range p.Keys() {
+			idx[k] = p
+		}
+	}
+	return nil
+}
+
+// swCount picks the "SW Analytics count: ..." sentence out of a comment.
+func swCount(comment string) string {
+	if i := strings.Index(comment, "SW Analytics count:"); i >= 0 {
+		return comment[i:]
+	}
+	return ""
+}
+
+func appendUnique(list []string, s string) []string {
+	for _, x := range list {
+		if x == s {
+			return list
+		}
+	}
+	return append(list, s)
+}
+
 func insertPart(x execer, p *hardware.Part) (int64, error) {
 	t := now()
 	if p.CreatedAt == "" {

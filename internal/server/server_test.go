@@ -433,8 +433,19 @@ func findPart(p hwPayload, category, name string) *store.HWPart {
 func TestHardwareList(t *testing.T) {
 	e := newEnv(t)
 	p := hwData(t, e)
-	if len(p.Parts) != 176 || !p.CanEdit {
+	if len(p.Parts) != 371 || !p.CanEdit {
 		t.Fatalf("seeded parts %d, can edit %v", len(p.Parts), p.CanEdit)
+	}
+	// SW Analytics: new parts get their own source; parts the datasheet has
+	// stay datasheet rows, with the SW Analytics count in the comment.
+	if x := findPart(p, "cpu", "Intel Xeon Gold 6142"); x == nil || x.Source != "sw_analytics" || !strings.Contains(x.Comment, "SW Analytics count: 31") {
+		t.Errorf("SW Analytics CPU: %+v", x)
+	}
+	if x := findPart(p, "cpu", "Intel Xeon E5-2630 v3"); x == nil || x.Source != "datasheet" || !strings.Contains(x.Comment, "Also in SW Analytics count: 40") {
+		t.Errorf("merged CPU: %+v", x)
+	}
+	if countName(p, "cpu", "Intel Xeon E5-2630 v3") != 1 || findPart(p, "cpu", "AMD EPYC-Milan-v2") == nil {
+		t.Error("SW Analytics merge")
 	}
 	if x := findPart(p, "nic", "HPE Ethernet 1Gb 4-port 331FLR"); x == nil || x.Status != "unsupported" || x.Source != "datasheet" {
 		t.Fatalf("331FLR: %+v", x)
@@ -442,14 +453,18 @@ func TestHardwareList(t *testing.T) {
 
 	// A hardware report adds its unknown parts (linked to the report) and skips known ones.
 	r := report.SampleHardware(report.SampleHosts[1], 60, time.Now(), true)
+	r.Environment.Host.NICs[0].Product = "Ethernet Controller E810-XXV for SFP"
 	b, _ := json.Marshal(r)
 	if code, out := e.upload(e.key, b, false); code != 201 {
 		t.Fatalf("upload: %d %v", code, out)
 	}
 	p = hwData(t, e)
-	x550 := findPart(p, "nic", "Intel Ethernet Controller X550")
+	x550 := findPart(p, "nic", "Intel Ethernet Controller E810-XXV for SFP")
 	if x550 == nil || x550.Source != "swhw" || x550.SourceReportID != r.ReportID || x550.Status != "unverified" || x550.ReportKeyName != "Test site" {
 		t.Fatalf("discovered NIC: %+v", x550)
+	}
+	if countName(p, "storage_controller", "Broadcom / LSI SAS3008 PCI-Express Fusion-MPT SAS-3") != 0 {
+		t.Error("the SAS3008 lspci name is a known alias and must not be added")
 	}
 	if findPart(p, "cpu", "AMD EPYC 7443P") == nil || countName(p, "cpu", "AMD EPYC 7443P") != 1 {
 		t.Error("EPYC 7443P is in the datasheet and must not be added twice")
@@ -500,7 +515,7 @@ func TestHardwareList(t *testing.T) {
 
 	// Deleting the source report keeps the part, without a link.
 	e.form(e.client, "/reports/"+r.ReportID+"/delete", nil)
-	if x := findPart(hwData(t, e), "nic", "Intel Ethernet Controller X550"); x == nil || x.SourceReportID != "" {
+	if x := findPart(hwData(t, e), "nic", "Intel Ethernet Controller E810-XXV for SFP"); x == nil || x.SourceReportID != "" {
 		t.Errorf("after report delete: %+v", x)
 	}
 }

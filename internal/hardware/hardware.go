@@ -26,10 +26,11 @@ const (
 )
 
 const (
-	SourceDatasheet  = "datasheet"
-	SourceManual     = "manual"
-	SourceTestScript = "test_script"
-	SourceSWHW       = "swhw"
+	SourceDatasheet   = "datasheet"
+	SourceManual      = "manual"
+	SourceTestScript  = "test_script"
+	SourceSWHW        = "swhw"
+	SourceSWAnalytics = "sw_analytics"
 )
 
 // Column is a category-specific attribute shown in the list and the form.
@@ -61,6 +62,7 @@ var Statuses = []struct{ ID, Label string }{
 var Sources = []struct{ ID, Label string }{
 	{SourceManual, "Manual input"}, {SourceTestScript, "Test Script"},
 	{SourceSWHW, "SWHW data"}, {SourceDatasheet, "Supported Hardware Datasheet"},
+	{SourceSWAnalytics, "SW Analytics"},
 }
 
 var DriveTypes = []string{"HDD", "SSD", "NVMe SSD"}
@@ -109,6 +111,7 @@ type Part struct {
 var (
 	trademarkRe = regexp.MustCompile(`(?i)\((r|tm)\)|[®™]`)
 	cpuNoiseRe  = regexp.MustCompile(`(?i)@\s*[\d.]+\s*ghz|\b\d+-core\b|\bcpu\b|\bprocessor\b`)
+	cpuZeroRe   = regexp.MustCompile(`\s0(\s*@)`) // "E5-2630 0 @ 2.30GHz": the first E5 generation
 	spacesRe    = regexp.MustCompile(`\s+`)
 	noiseWords  = map[string]bool{"corporation": true, "corp": true, "inc": true, "co": true, "ltd": true, "llc": true,
 		"subsidiaries": true, "technologies": true, "technology": true, "company": true}
@@ -121,7 +124,7 @@ func Key(category, s string) string {
 	s = strings.ToLower(trademarkRe.ReplaceAllString(s, " "))
 	s = strings.ReplaceAll(s, "and subsidiaries", " ")
 	if category == CatCPU {
-		s = cpuNoiseRe.ReplaceAllString(s, " ")
+		s = cpuNoiseRe.ReplaceAllString(cpuZeroRe.ReplaceAllString(s, "$1"), " ")
 	}
 	var b strings.Builder
 	for _, w := range strings.FieldsFunc(s, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) {
@@ -150,7 +153,8 @@ func tidy(s string) string { return strings.TrimSpace(spacesRe.ReplaceAllString(
 // CleanCPU turns a CPU model string into its short name:
 // "Intel(R) Xeon(R) Silver 4208 CPU @ 2.10GHz" -> "Intel Xeon Silver 4208".
 func CleanCPU(s string) string {
-	return tidy(cpuNoiseRe.ReplaceAllString(trademarkRe.ReplaceAllString(s, " "), " "))
+	s = cpuZeroRe.ReplaceAllString(trademarkRe.ReplaceAllString(s, " "), "$1")
+	return tidy(cpuNoiseRe.ReplaceAllString(s, " "))
 }
 
 var (

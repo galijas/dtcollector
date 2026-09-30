@@ -82,6 +82,16 @@ Done:
   name like "Intel Ethernet Controller X550" is added next to the
   datasheet's "Intel X550"; admins merge by deleting one. Smarter matching
   (by chipset token) is a possible next step.
+- SW Analytics (2026-09-30): migration 4 seeds
+  `internal/hardware/seed/sw-analytics-hardware.json` (copy of
+  `~/claude/Resources/SW Analytics Hardware.json`, built by
+  `~/claude/Resources/Hardware/build_sw_analytics.py` from the Grafana
+  "Series joined by time" CSV exports). Source "SW Analytics", status
+  Supported. Virtual/USB/broken devices, chipset SATA/AHCI/RAID-mode, VMD,
+  iSCSI functions and NVMe drives are excluded (listed under "excluded" in
+  the JSON); desktop parts are kept with a note. Parts the datasheet already
+  lists stay datasheet rows and get "Also in SW Analytics count: N" in the
+  comment plus the SW names as aliases.
 - `canEditHardware` in `internal/server/hardware.go` allows every admin;
   account types will narrow it.
 
