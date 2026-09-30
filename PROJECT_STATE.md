@@ -4,7 +4,7 @@ Read this first when continuing work. The project brief is
 `~/claude/DTcollector_project.md` (outside the repo; the single copy);
 the upload contract is `docs/api.md`.
 
-## Status (2026-09-28)
+## Status (2026-09-30)
 
 Deployed at https://dtcollector.dtbicom.xyz/ (SERVERware VPS, KVM,
 SSH on port 2020). HTTPS with the Let's Encrypt certificate works.
@@ -134,8 +134,9 @@ Done:
 ## Live system
 
 - Upgrade: on the server, `cd /root/dtcollector && git pull && sudo ./install.sh`
-  (Enter keeps the saved DNS name and email). Claude doesn't run commands
-  there; it gives the commands to run.
+  (Enter keeps the saved DNS name and email). Take a backup first when the
+  release adds a migration: `runuser -u dtcollector -- dtcollector backup
+  -data-dir /var/lib/dtcollector`.
 - 2026-09-28 first install: `ufw enable` failed and `set -e` aborted the
   script before the admin password was printed (password reset with
   `reset-password`; the password is now printed on exit in every case).
@@ -148,19 +149,30 @@ Done:
 
 ## Next session
 
-State at end of 2026-09-29: `main` = a44906b, deployed and live (backup
-taken before its DB migration: `backups/dtcollector-20260929-115405.db`).
-SwarmDialer's upload side is built (SwarmDialer v1.4/v1.5).
+State at end of 2026-09-30: `main` = the commit after 99f3263 (docs only),
+live on the VPS as 99f3263, schema version 8. Backup taken before the last
+migration: `backups/dtcollector-20260930-141309.db`.
 
-Candidates, as the user decides:
-1. Build the hardware collection script (brief `~/claude/Project_HW_collect.md`);
-   DT Collector already accepts its format (`dtc-sample -script` shows it).
+Built on 2026-09-30 (all live):
+- HW Validation tab (first tab): hardware list with search, type/source/
+  status filters, manual add/edit/delete, report-derived parts (added as
+  Supported), sources Datasheet / SW Analytics / Manual / Test Script /
+  SWHW data; starter list = `internal/hardware/seed/hardware-list.json`
+  (snapshot of the live list, 370 parts; refresh with `export-hardware`).
+- Export PDF button (list as filtered), HowTo: Upload SWHW data window.
+- Account types Admin / User.
+- SWHW Collector script is built (`~/claude/SWHW_Collector`, GitHub
+  galijas/swhw); DT Collector accepts its reports.
+
+Possible next steps (the user decides):
+1. Similar-name hints and a Merge action for hardware entries (discussed;
+   the user chose to keep strict matching for now).
 2. Optional: match hardware-only entries with benchmark reports from the
    same machine.
-3. Left for the user on the VPS (the auto-mode check blocked it): remove
-   the inert leftover ufw tables (`nft delete table ip filter`,
-   `nft delete table ip6 filter`, `ufw --force reset`). Recommended: change
-   the root password, which was shared in chat, or switch to SSH keys.
+3. For the user on the VPS: remove the inert leftover ufw tables
+   (`nft delete table ip filter`, `nft delete table ip6 filter`,
+   `ufw --force reset`); change the root password (shared in chat) or
+   switch to SSH keys.
 
 ## Development notes
 
