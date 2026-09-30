@@ -102,6 +102,9 @@ Done:
   controllers were added to Drives; desktop/laptop CPUs and consumer or
   workstation boards were removed (the JSON's "removed" list; only rows
   still sourced from SW Analytics are deleted).
+- Export PDF button (2026-09-30): `GET /hardware/export.pdf?q=&type=&source=&status=`
+  renders the list as shown (same search rules as the page, ported to Go
+  in `internal/server/hwpdf.go`), A4 landscape, via github.com/go-pdf/fpdf.
 - `canEditHardware` in `internal/server/hardware.go` allows every admin;
   account types will narrow it.
 

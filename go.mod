@@ -3,6 +3,7 @@ module dtcollector
 go 1.27.1
 
 require (
+	github.com/go-pdf/fpdf v0.9.0
 	golang.org/x/crypto v0.57.0
 	modernc.org/sqlite v1.59.0
 )

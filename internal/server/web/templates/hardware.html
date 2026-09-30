@@ -10,7 +10,10 @@
     <label>Source <select id="hw-source"><option value="">All sources</option></select></label>
     <label>Status <select id="hw-status"><option value="">All statuses</option></select></label>
   </div>
-  {{if .Data.CanEdit}}<button class="primary" type="button" id="hw-add">Add hardware</button>{{end}}
+  <div class="row hw-buttons">
+    <a class="button" id="hw-export" href="/hardware/export.pdf" title="Download the list as shown (search and filters applied) as a PDF">Export PDF</a>
+    {{if .Data.CanEdit}}<button class="primary" type="button" id="hw-add">Add hardware</button>{{end}}
+  </div>
 </div>
 
 {{if .Data.CanEdit}}

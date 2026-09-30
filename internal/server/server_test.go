@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"dtcollector/internal/auth"
+	"dtcollector/internal/hardware"
 	"dtcollector/internal/report"
 	"dtcollector/internal/store"
 )
@@ -540,4 +541,41 @@ func countName(p hwPayload, category, name string) int {
 		}
 	}
 	return n
+}
+
+func TestHardwarePDF(t *testing.T) {
+	e := newEnv(t)
+	resp, err := e.client.Get(e.ts.URL + "/hardware/export.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	all, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "application/pdf" || !bytes.HasPrefix(all, []byte("%PDF-")) ||
+		!strings.Contains(resp.Header.Get("Content-Disposition"), "dtcollector-hw-validation-") {
+		t.Fatalf("export: %d %q %q", resp.StatusCode, resp.Header.Get("Content-Type"), all[:min(8, len(all))])
+	}
+	resp, _ = e.client.Get(e.ts.URL + "/hardware/export.pdf?q=E5-2699&type=cpu")
+	some, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !bytes.HasPrefix(some, []byte("%PDF-")) || len(some) >= len(all) {
+		t.Errorf("filtered export: %d bytes vs %d for all", len(some), len(all))
+	}
+	// Not logged in: redirected to the login page.
+	resp, _ = (&http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}).Get(e.ts.URL + "/hardware/export.pdf")
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("anonymous export: %d", resp.StatusCode)
+	}
+}
+
+func TestHardwareSearchMatchesPage(t *testing.T) {
+	p := store.HWPart{Part: hardware.Part{Category: "cpu", Name: "Intel Xeon E5-2699 v4", Status: "supported", Source: "datasheet"}}
+	for q, want := range map[string]bool{"E5-2699": true, "e52699": true, "E5 2699": true, "xeon 2699 v4": true, "E5-2698": false} {
+		if got := (hwFilter{Query: q}).match(p); got != want {
+			t.Errorf("%q: %v", q, got)
+		}
+	}
+	if (hwFilter{Category: "nic"}).match(p) || !(hwFilter{Source: "datasheet", Status: "supported"}).match(p) {
+		t.Error("type/source/status filters")
+	}
 }

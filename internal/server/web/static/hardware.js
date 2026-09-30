@@ -163,6 +163,17 @@
       det.appendChild(wrap);
       root.appendChild(det);
     });
+    var exp = document.getElementById('hw-export');
+    if (exp) {
+      var params = new URLSearchParams();
+      if (q.value.trim()) params.set('q', q.value.trim());
+      if (fType.value) params.set('type', fType.value);
+      if (fSource.value) params.set('source', fSource.value);
+      if (fStatus.value) params.set('status', fStatus.value);
+      var qs = params.toString();
+      exp.href = '/hardware/export.pdf' + (qs ? '?' + qs : '');
+      exp.textContent = filtering ? 'Export PDF (' + shown + ')' : 'Export PDF';
+    }
     var count = document.getElementById('hw-count');
     count.textContent = filtering ? shown + ' of ' + D.parts.length + ' parts match.' : D.parts.length + ' parts in the list.';
     if (filtering && !shown) root.appendChild(el('p', 'card muted', 'No hardware matches. Clear the search or filters, or add the part with "Add hardware".'));
