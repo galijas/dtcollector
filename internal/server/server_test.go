@@ -466,7 +466,7 @@ func TestHardwareList(t *testing.T) {
 	}
 	p = hwData(t, e)
 	x550 := findPart(p, "nic", "Intel Ethernet Controller E810-XXV for SFP")
-	if x550 == nil || x550.Source != "swhw" || x550.SourceReportID != r.ReportID || x550.Status != "unverified" || x550.ReportKeyName != "Test site" {
+	if x550 == nil || x550.Source != "swhw" || x550.SourceReportID != r.ReportID || x550.Status != "supported" || x550.ReportKeyName != "Test site" {
 		t.Fatalf("discovered NIC: %+v", x550)
 	}
 	if countName(p, "storage_controller", "Broadcom / LSI SAS3008 PCI-Express Fusion-MPT SAS-3") != 0 {

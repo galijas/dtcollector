@@ -1,6 +1,6 @@
 {{define "content"}}
 <h1>HW Validation</h1>
-<p class="sub">Hardware parts known to DT Collector and whether each is supported. The list starts with the Supported Hardware datasheet and grows with every uploaded report: parts a report describes that aren't listed yet are added as "Not validated".</p>
+<p class="sub">Hardware parts known to DT Collector and whether each is supported. The list starts with two built-in sources, the Supported Hardware Datasheet and SW Analytics, and grows with every uploaded report (Test Script and SWHW data) and every manual entry. Parts a report describes that aren't listed yet are added as Supported, with a link to that report.</p>
 {{with .Data.Error}}<p class="error" role="alert">{{.}}</p>{{end}}
 
 <div class="hw-toolbar">

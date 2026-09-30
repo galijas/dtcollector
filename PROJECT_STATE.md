@@ -73,6 +73,8 @@ Done:
 - Columns follow what reports can fill: NIC speed, ports seen, Linux driver;
   drive type. Datasheet-only details (chipset, media, interface, capacities,
   controller type/chipset/driver) are in the comment.
+- 2026-09-30: parts from reports are added as Supported (was "Not
+  validated"); "Not validated" stays available for manual use.
 - On every stored upload, `hardware.FromReport` extracts parts; parts whose
   normalized name or alias is already listed are skipped (NIC port counts
   and empty speed/driver/type are merged in). Hardware-only reports are

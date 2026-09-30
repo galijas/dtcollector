@@ -16,14 +16,14 @@ func usable(s string) bool {
 }
 
 // FromReport lists the hardware parts a report describes: server model,
-// CPU, NIC models, drives and storage controllers. Status is "not
-// validated": a report proves the part exists, not that it is supported.
+// CPU, NIC models, drives and storage controllers. They are added as
+// supported: the report shows the hardware running SERVERware.
 func FromReport(r *report.Report) []Part {
 	h := r.Environment.Host
 	var out []Part
 	seen := map[string]bool{}
 	add := func(p Part) {
-		p.Status = StatusUnverified
+		p.Status = StatusSupported
 		k := p.Category + "/" + Key(p.Category, p.Name)
 		if seen[k] {
 			for i := range out {

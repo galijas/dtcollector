@@ -104,7 +104,7 @@ func TestFromReport(t *testing.T) {
 		t.Errorf("nic attrs %+v", n.Attrs)
 	}
 	for _, p := range parts {
-		if p.Status != StatusUnverified {
+		if p.Status != StatusSupported {
 			t.Errorf("%s status %s", p.Name, p.Status)
 		}
 	}

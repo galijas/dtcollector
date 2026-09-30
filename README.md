@@ -14,11 +14,11 @@ each test's results and time series, and compare hosts side by side.
   [docs/api.md](docs/api.md) for the contract.
 - **HW Validation** (the first tab): a list of hardware parts (server
   models, CPUs, NICs, drives, storage controllers) marked Supported,
-  Unsupported or Not validated. It is seeded from the Supported Hardware
-  datasheet on first install (`internal/hardware/seed/`), extended by hand,
-  and extended automatically by every uploaded report: parts a report
-  describes that aren't listed yet are added as "Not validated", linked to
-  that report.
+  Unsupported or Not validated. It is seeded on first install from the
+  Supported Hardware datasheet and SW Analytics (`internal/hardware/seed/`),
+  extended by hand, and extended automatically by every uploaded report:
+  parts a report describes that aren't listed yet are added as Supported,
+  linked to that report.
 - **Web interface**: local admin accounts (bcrypt-hashed passwords). Admins
   browse and compare reports and manage API keys and admin accounts. A
   light/dark theme toggle (remembered per browser) sits in the header.
