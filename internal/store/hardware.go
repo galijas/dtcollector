@@ -149,6 +149,41 @@ func shortenSWCounts(tx *sql.Tx) error {
 	return nil
 }
 
+// addDatasheetParts inserts the named datasheet parts added after the first
+// release, unless the list already has them. Other datasheet parts are left
+// alone, so entries an admin deleted don't come back.
+func addDatasheetParts(tx *sql.Tx, names ...string) error {
+	parts, err := hardware.Seed()
+	if err != nil {
+		return err
+	}
+	want := map[string]bool{}
+	for _, n := range names {
+		want[n] = true
+	}
+	for i := range parts {
+		p := &parts[i]
+		if !want[p.Name] {
+			continue
+		}
+		delete(want, p.Name)
+		idx, err := keyIndex(tx, p.Category)
+		if err != nil {
+			return err
+		}
+		if conflict(idx, p) != nil {
+			continue
+		}
+		if _, err := insertPart(tx, p); err != nil {
+			return err
+		}
+	}
+	if len(want) > 0 {
+		return fmt.Errorf("datasheet has no entry named %v", want)
+	}
+	return nil
+}
+
 // swCount picks the "SW Analytics count: ..." sentence out of a comment.
 func swCount(comment string) string {
 	if i := strings.Index(comment, "SW Analytics count:"); i >= 0 {

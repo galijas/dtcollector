@@ -433,7 +433,7 @@ func findPart(p hwPayload, category, name string) *store.HWPart {
 func TestHardwareList(t *testing.T) {
 	e := newEnv(t)
 	p := hwData(t, e)
-	if len(p.Parts) != 369 || !p.CanEdit {
+	if len(p.Parts) != 371 || !p.CanEdit {
 		t.Fatalf("seeded parts %d, can edit %v", len(p.Parts), p.CanEdit)
 	}
 	// SW Analytics: new parts get their own source; parts the datasheet has
@@ -452,6 +452,12 @@ func TestHardwareList(t *testing.T) {
 	}
 	if d := findPart(p, "drive", "Micron 7450 PRO"); d == nil || d.Source != "sw_analytics" || d.Attrs.Type != "NVMe SSD" {
 		t.Errorf("SW Analytics NVMe drive: %+v", d)
+	}
+	if x := findPart(p, "storage_controller", "Dell BOSS-S1"); x == nil || x.Status != "unsupported" || x.Source != "datasheet" || x.Comment != "Boot issues encountered previously" {
+		t.Errorf("BOSS-S1: %+v", x)
+	}
+	if x := findPart(p, "storage_controller", "Dell BOSS-S2"); x == nil || x.Status != "supported" || x.Source != "datasheet" || x.Comment != "" {
+		t.Errorf("BOSS-S2: %+v", x)
 	}
 	if x := findPart(p, "nic", "HPE Ethernet 1Gb 4-port 331FLR"); x == nil || x.Status != "unsupported" || x.Source != "datasheet" {
 		t.Fatalf("331FLR: %+v", x)

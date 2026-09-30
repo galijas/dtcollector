@@ -110,6 +110,7 @@ var migrations = []string{
 
 	"", // 5: SW Analytics update (hook only)
 	"", // 6: shorter SW Analytics comments (hook only)
+	"", // 7: Dell BOSS-S1 / BOSS-S2 datasheet entries (hook only)
 }
 
 // migrationHooks run after a migration's SQL, in the same transaction.
@@ -118,6 +119,7 @@ var migrationHooks = map[int]func(*sql.Tx) error{
 	3: seedSWAnalytics,
 	4: updateSWAnalytics,
 	5: shortenSWCounts,
+	6: func(tx *sql.Tx) error { return addDatasheetParts(tx, "Dell BOSS-S1", "Dell BOSS-S2") },
 }
 
 func (s *Store) migrate() error {

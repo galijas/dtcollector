@@ -65,7 +65,7 @@ func TestSeed(t *testing.T) {
 			t.Fatalf("bad part %+v", p)
 		}
 	}
-	want := map[string]int{CatServer: 41, CatCPU: 61, CatNIC: 29, CatDrive: 19, CatController: 26}
+	want := map[string]int{CatServer: 41, CatCPU: 61, CatNIC: 29, CatDrive: 19, CatController: 28}
 	for c, n := range want {
 		if count[c] != n {
 			t.Errorf("%s: %d parts, want %d", c, count[c], n)

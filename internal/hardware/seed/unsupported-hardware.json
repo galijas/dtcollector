@@ -53,5 +53,20 @@
     }
   ],
   "drives": [],
-  "storage_controllers": []
+  "storage_controllers": [
+    {
+      "id": "dell-boss-s1",
+      "vendor": "Dell",
+      "model": "BOSS-S1",
+      "name": "Dell BOSS-S1",
+      "type": null,
+      "chipset": null,
+      "linux_driver": null,
+      "reason": "Boot issues encountered previously",
+      "aliases": [],
+      "sources": [
+        "added on request 2026-09-30"
+      ]
+    }
+  ]
 }
