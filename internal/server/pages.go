@@ -148,7 +148,7 @@ func (s *Server) loadTemplates() error {
 	})
 	s.assetVer = hex.EncodeToString(h.Sum(nil))[:10]
 	s.pages = map[string]*template.Template{}
-	for _, p := range []string{"login.html", "reports.html", "report.html", "compare.html", "keys.html", "accounts.html", "error.html", "hardware.html"} {
+	for _, p := range []string{"login.html", "reports.html", "report.html", "compare.html", "keys.html", "accounts.html", "error.html", "hardware.html", "howto-swhw.html"} {
 		t, err := template.New("").Funcs(funcs).ParseFS(webFS, "web/templates/base.html", "web/templates/"+p)
 		if err != nil {
 			return fmt.Errorf("template %s: %w", p, err)

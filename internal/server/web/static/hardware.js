@@ -179,6 +179,15 @@
     if (filtering && !shown) root.appendChild(el('p', 'card muted', 'No hardware matches. Clear the search or filters, or add the part with "Add hardware".'));
   }
 
+  // The how-to opens in its own window (a new tab if pop-ups are blocked).
+  var howto = document.getElementById('hw-howto');
+  if (howto) {
+    howto.addEventListener('click', function (e) {
+      var w = window.open(howto.href, 'dtc-howto-swhw', 'width=900,height=820,resizable=yes,scrollbars=yes');
+      if (w) { e.preventDefault(); w.focus(); }
+    });
+  }
+
   [q, fType, fSource, fStatus].forEach(function (x) { x.addEventListener(x === q ? 'input' : 'change', render); });
 
   // ---- add / edit form ----

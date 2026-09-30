@@ -74,6 +74,7 @@ func New(cfg Config) (*Server, error) {
 
 	ui.HandleFunc("GET /{$}", s.admin(s.handleHardware))
 	ui.HandleFunc("GET /hardware/export.pdf", s.admin(s.handleHardwarePDF))
+	ui.HandleFunc("GET /howto/swhw", s.admin(s.handleHowtoSWHW))
 	ui.HandleFunc("POST /hardware", s.admin(s.handlePartCreate))
 	ui.HandleFunc("POST /hardware/{id}", s.admin(s.handlePartUpdate))
 	ui.HandleFunc("POST /hardware/{id}/delete", s.admin(s.handlePartDelete))

@@ -579,3 +579,19 @@ func TestHardwareSearchMatchesPage(t *testing.T) {
 		t.Error("type/source/status filters")
 	}
 }
+
+func TestHowtoSWHW(t *testing.T) {
+	e := newEnv(t)
+	resp, body := e.get(e.client, "/howto/swhw")
+	if resp.StatusCode != 200 {
+		t.Fatalf("howto: %d", resp.StatusCode)
+	}
+	for _, w := range []string{"HowTo: Upload SWHW data", "raw.githubusercontent.com/galijas/swhw/main/swhw.sh", `data-copy="#swhw-cmd"`, "older than 5.0"} {
+		if !strings.Contains(body, w) {
+			t.Errorf("howto page missing %q", w)
+		}
+	}
+	if _, page := e.get(e.client, "/"); !strings.Contains(page, `href="/howto/swhw"`) {
+		t.Error("HW Validation page has no HowTo button")
+	}
+}

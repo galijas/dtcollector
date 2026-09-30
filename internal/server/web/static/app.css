@@ -219,6 +219,19 @@ td.best::after { content: " ★"; color: var(--ok); font-weight: 400; font-size:
 .uplot .u-cursor-x { border-right: 1px solid var(--muted) !important; }
 .uplot .u-cursor-y { display: none; }
 
+/* How-to pages */
+ol.howto { display: flex; flex-direction: column; gap: 14px; padding-left: 1.4rem; max-width: 64rem; margin: 1rem 0 0; }
+ol.howto > li::marker { font-family: var(--mono); font-weight: 600; color: var(--accent); }
+ol.howto h2 { margin: 0 0 4px; font-size: 15px; }
+ol.howto p { margin: 4px 0; }
+ol.howto ul { margin: 4px 0; padding-left: 1.2rem; }
+ol.howto ul li { margin: 3px 0; }
+.howto-cmd { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.howto-cmd code {
+  background: var(--console-bg); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 8px 10px; font-size: 13px; user-select: all; word-break: break-all; flex: 1; min-width: 0;
+}
+
 /* HW Validation */
 .hw-toolbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .hw-filters { flex: 1; }

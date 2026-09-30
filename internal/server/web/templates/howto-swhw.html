@@ -1,0 +1,37 @@
+{{define "content"}}
+<h1>HowTo: Upload SWHW data</h1>
+<p class="sub">SWHW Collector (<code>swhw</code>) reads a SERVERware host's hardware and uploads it here as a hardware-only report. It needs no installation and no PBXware access. It requires SERVERware 5.0 or newer.</p>
+
+<ol class="howto">
+  <li>
+    <h2>Create a SERVERware API key</h2>
+    <p>In SERVERware, create an API key (an admin API token). The script uses it to read the host's hardware.</p>
+  </li>
+  <li>
+    <h2>Create a DT Collector API (Upload) key</h2>
+    <p>Create one under <a href="/keys" target="_blank" rel="noopener">API (Upload) Keys</a>, or reuse an existing key for the same site or network.</p>
+  </li>
+  <li>
+    <h2>Run the script</h2>
+    <p>From any Linux shell that can reach the SERVERware controller over HTTPS and DT Collector over the internet (the controller itself works too):</p>
+    <div class="howto-cmd">
+      <code id="swhw-cmd">bash &lt;(curl -fsSL https://raw.githubusercontent.com/galijas/swhw/main/swhw.sh)</code>
+      <button type="button" data-copy="#swhw-cmd">Copy</button>
+    </div>
+  </li>
+  <li>
+    <h2>Answer the prompts</h2>
+    <p>The script asks for:</p>
+    <ul>
+      <li>the SERVERware controller: an IP address, DNS name or URL (<code>https://10.1.101.10</code>, <code>http://sw.example.com</code> and <code>10.1.101.10</code> all work);</li>
+      <li>the SERVERware API key (an admin API token), which is checked right away, followed by the SERVERware version check: on versions older than 5.0 the script stops here, before changing anything;</li>
+      <li>the DT Collector upload key (<code>dtk_...</code>), which is also checked right away.</li>
+    </ul>
+    <p class="muted">Keys are read without being shown on screen.</p>
+  </li>
+  <li>
+    <h2>Find the hardware in DT Collector</h2>
+    <p>The hardware is uploaded here: it appears under <a href="/reports?kind=hardware" target="_blank" rel="noopener">Reports</a> as a "Hardware only" report, and any parts that aren't listed yet are added to <a href="/" target="_blank" rel="noopener">HW Validation</a> with the source "SWHW data".</p>
+  </li>
+</ol>
+{{end}}

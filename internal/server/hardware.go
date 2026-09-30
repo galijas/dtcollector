@@ -84,6 +84,10 @@ func (s *Server) renderHardware(w http.ResponseWriter, r *http.Request, code int
 	s.render(w, r, code, "hardware.html", "HW Validation", hwPageData{JSON: string(b), Error: errMsg, CanEdit: p.CanEdit})
 }
 
+func (s *Server) handleHowtoSWHW(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, http.StatusOK, "howto-swhw.html", "HowTo: Upload SWHW data", nil)
+}
+
 func (s *Server) handleHardware(w http.ResponseWriter, r *http.Request) {
 	s.renderHardware(w, r, http.StatusOK, "", nil)
 }
