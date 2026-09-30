@@ -433,7 +433,7 @@ func findPart(p hwPayload, category, name string) *store.HWPart {
 func TestHardwareList(t *testing.T) {
 	e := newEnv(t)
 	p := hwData(t, e)
-	if len(p.Parts) != 371 || !p.CanEdit {
+	if len(p.Parts) != 369 || !p.CanEdit {
 		t.Fatalf("seeded parts %d, can edit %v", len(p.Parts), p.CanEdit)
 	}
 	// SW Analytics: new parts get their own source; parts the datasheet has
@@ -446,6 +446,12 @@ func TestHardwareList(t *testing.T) {
 	}
 	if countName(p, "cpu", "Intel Xeon E5-2630 v3") != 1 || findPart(p, "cpu", "AMD EPYC-Milan-v2") == nil {
 		t.Error("SW Analytics merge")
+	}
+	if findPart(p, "cpu", "AMD Ryzen 7 5800X") != nil || findPart(p, "server_model", "ASUS PRIME B760M-A D4") != nil {
+		t.Error("desktop CPUs and boards are not part of the SW Analytics list")
+	}
+	if d := findPart(p, "drive", "Micron 7450 PRO"); d == nil || d.Source != "sw_analytics" || d.Attrs.Type != "NVMe SSD" {
+		t.Errorf("SW Analytics NVMe drive: %+v", d)
 	}
 	if x := findPart(p, "nic", "HPE Ethernet 1Gb 4-port 331FLR"); x == nil || x.Status != "unsupported" || x.Source != "datasheet" {
 		t.Fatalf("331FLR: %+v", x)

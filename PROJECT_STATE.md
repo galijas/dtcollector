@@ -92,6 +92,10 @@ Done:
   the JSON); desktop parts are kept with a note. Parts the datasheet already
   lists stay datasheet rows and get "Also in SW Analytics count: N" in the
   comment plus the SW names as aliases.
+  Migration 5 (same day): NVMe drives that SW Analytics lists as storage
+  controllers were added to Drives; desktop/laptop CPUs and consumer or
+  workstation boards were removed (the JSON's "removed" list; only rows
+  still sourced from SW Analytics are deleted).
 - `canEditHardware` in `internal/server/hardware.go` allows every admin;
   account types will narrow it.
 

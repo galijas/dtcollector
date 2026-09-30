@@ -98,6 +98,23 @@ func seedSWAnalytics(tx *sql.Tx) error {
 	return nil
 }
 
+// updateSWAnalytics (migration 5) removes SW Analytics parts that were taken
+// out of the list (desktop CPUs and boards) and adds the new ones (NVMe
+// drives); parts already present are left as they are.
+func updateSWAnalytics(tx *sql.Tx) error {
+	removed, err := hardware.SWAnalyticsRemoved()
+	if err != nil {
+		return err
+	}
+	for _, p := range removed {
+		if _, err := tx.Exec(`DELETE FROM hw_parts WHERE source = ? AND category = ? AND name_key = ?`,
+			hardware.SourceSWAnalytics, p.Category, hardware.Key(p.Category, p.Name)); err != nil {
+			return err
+		}
+	}
+	return seedSWAnalytics(tx)
+}
+
 // swCount picks the "SW Analytics count: ..." sentence out of a comment.
 func swCount(comment string) string {
 	if i := strings.Index(comment, "SW Analytics count:"); i >= 0 {

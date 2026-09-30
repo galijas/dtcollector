@@ -133,7 +133,7 @@ func TestSWAnalytics(t *testing.T) {
 			t.Fatalf("bad part %+v", p)
 		}
 	}
-	want := map[string]int{CatServer: 98, CatCPU: 134, CatNIC: 42, CatController: 23}
+	want := map[string]int{CatServer: 93, CatCPU: 125, CatNIC: 42, CatDrive: 16, CatController: 23}
 	for c, n := range want {
 		if count[c] != n {
 			t.Errorf("%s: %d parts, want %d", c, count[c], n)

@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -51,5 +52,40 @@ func TestMigrationBackfill(t *testing.T) {
 	}
 	if r := got["hardware"]; r.Kind != "hardware" || r.SourceLabel() != "SwarmDialer 1.5.0" {
 		t.Errorf("hardware row: kind %q label %q", r.Kind, r.SourceLabel())
+	}
+}
+
+// Migration 5 on a database that got the first SW Analytics list: the
+// removed desktop parts go, manual entries of the same name stay.
+func TestUpdateSWAnalyticsRemoves(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for _, src := range []string{"sw_analytics", "manual"} {
+		cat := "cpu"
+		name := "AMD Ryzen 7 5800X"
+		if src == "manual" {
+			cat, name = "server_model", "ASUS PRIME B760M-A D4"
+		}
+		if _, err := st.db.Exec(`INSERT INTO hw_parts(category, name, name_key, status, source, created_at, updated_at)
+			VALUES(?, ?, ?, 'supported', ?, '', '')`, cat, name, strings.ToLower(strings.NewReplacer(" ", "", "-", "").Replace(name)), src); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tx, _ := st.db.Begin()
+	if err := updateSWAnalytics(tx); err != nil {
+		t.Fatal(err)
+	}
+	tx.Commit()
+	var n int
+	st.db.QueryRow(`SELECT COUNT(*) FROM hw_parts WHERE name = 'AMD Ryzen 7 5800X'`).Scan(&n)
+	if n != 0 {
+		t.Error("SW Analytics Ryzen entry not removed")
+	}
+	st.db.QueryRow(`SELECT COUNT(*) FROM hw_parts WHERE name = 'ASUS PRIME B760M-A D4'`).Scan(&n)
+	if n != 1 {
+		t.Error("a manual entry must not be removed")
 	}
 }

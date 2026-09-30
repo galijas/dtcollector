@@ -45,6 +45,10 @@ type seedFile struct {
 		From string `json:"from"`
 		To   string `json:"to"`
 	} `json:"period"`
+	Removed []struct {
+		Type string `json:"type"`
+		Name string `json:"name"`
+	} `json:"removed"`
 }
 
 func deref(p *string) string {
@@ -189,6 +193,28 @@ func appendUnique(list []string, s string) []string {
 // (~/claude/Resources/Hardware/build_sw_analytics.py). Parts the list already
 // has are merged into the existing entry by the store.
 func SWAnalytics() ([]Part, error) {
+	f, err := swAnalyticsFile()
+	if err != nil {
+		return nil, err
+	}
+	return f.parts(StatusSupported, SourceSWAnalytics), nil
+}
+
+// SWAnalyticsRemoved lists parts of the first SW Analytics list that were
+// taken out later (desktop CPUs and boards); only Category and Name are set.
+func SWAnalyticsRemoved() ([]Part, error) {
+	f, err := swAnalyticsFile()
+	if err != nil {
+		return nil, err
+	}
+	var out []Part
+	for _, r := range f.Removed {
+		out = append(out, Part{Category: r.Type, Name: r.Name})
+	}
+	return out, nil
+}
+
+func swAnalyticsFile() (*seedFile, error) {
 	b, err := seedFS.ReadFile("seed/sw-analytics-hardware.json")
 	if err != nil {
 		return nil, err
@@ -197,5 +223,5 @@ func SWAnalytics() ([]Part, error) {
 	if err := json.Unmarshal(b, &f); err != nil {
 		return nil, fmt.Errorf("sw-analytics-hardware.json: %w", err)
 	}
-	return f.parts(StatusSupported, SourceSWAnalytics), nil
+	return &f, nil
 }

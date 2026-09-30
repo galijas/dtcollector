@@ -15,15 +15,6 @@
   },
   "server_models": [
     {
-      "name": "ASRock B450 Pro4",
-      "aliases": [
-        "ASRock To Be Filled By O.E.M. B450 Pro4 R2.0"
-      ],
-      "count": 1,
-      "notes": "Desktop motherboard; system model not reported.",
-      "in_datasheet": false
-    },
-    {
       "name": "ASRock Rack B450D4U-V1L",
       "aliases": [
         "ASRockRack  B450D4U-V1L"
@@ -39,33 +30,6 @@
       ],
       "count": 1,
       "notes": "Motherboard only; system model not reported.",
-      "in_datasheet": false
-    },
-    {
-      "name": "ASUS PRIME B760M-A D4",
-      "aliases": [
-        "ASUSTeK COMPUTER INC. System Product Name PRIME B760M-A D4 v:Rev 1.xx"
-      ],
-      "count": 1,
-      "notes": "Desktop motherboard; system model not reported.",
-      "in_datasheet": false
-    },
-    {
-      "name": "ASUS Pro WS 565-ACE",
-      "aliases": [
-        "ASUSTeK COMPUTER INC. System Product Name Pro WS 565-ACE v:Rev X.0x"
-      ],
-      "count": 1,
-      "notes": "Workstation motherboard; system model not reported.",
-      "in_datasheet": false
-    },
-    {
-      "name": "ASUS Pro WS 665-ACE",
-      "aliases": [
-        "ASUSTeK COMPUTER INC. System Product Name Pro WS 665-ACE v:Rev 1.xx"
-      ],
-      "count": 1,
-      "notes": "Workstation motherboard; system model not reported.",
       "in_datasheet": false
     },
     {
@@ -544,15 +508,6 @@
       "in_datasheet": false
     },
     {
-      "name": "Lenovo 10AR003FCR",
-      "aliases": [
-        "LENOVO 10AR003FCR SHARKBAY v:0B98401 PRO"
-      ],
-      "count": 1,
-      "notes": "ThinkCentre desktop.",
-      "in_datasheet": false
-    },
-    {
       "name": "Lenovo System x3550 M5",
       "aliases": [
         "LENOVO System x3550 M5: -[5463FT1]- 00MV249 v:SVT"
@@ -983,87 +938,6 @@
         "AMD Opteron(TM) Processor 6272"
       ],
       "count": 1,
-      "in_datasheet": false
-    },
-    {
-      "name": "AMD Ryzen 5 3600",
-      "aliases": [
-        "AMD Ryzen 5 3600 6-Core Processor"
-      ],
-      "count": 1,
-      "notes": "Desktop CPU.",
-      "in_datasheet": false
-    },
-    {
-      "name": "AMD Ryzen 7 3700X",
-      "aliases": [
-        "AMD Ryzen 7 3700X 8-Core Processor"
-      ],
-      "count": 1,
-      "notes": "Desktop CPU.",
-      "in_datasheet": false
-    },
-    {
-      "name": "AMD Ryzen 7 5800X",
-      "aliases": [
-        "AMD Ryzen 7 5800X 8-Core Processor"
-      ],
-      "count": 3,
-      "notes": "Desktop CPU.",
-      "in_datasheet": false
-    },
-    {
-      "name": "AMD Ryzen 7 7700",
-      "aliases": [
-        "AMD Ryzen 7 7700 8-Core Processor"
-      ],
-      "count": 1,
-      "notes": "Desktop CPU.",
-      "in_datasheet": false
-    },
-    {
-      "name": "AMD Ryzen 9 3900",
-      "aliases": [
-        "AMD Ryzen 9 3900 12-Core Processor"
-      ],
-      "count": 1,
-      "notes": "Desktop CPU.",
-      "in_datasheet": false
-    },
-    {
-      "name": "AMD Ryzen 9 5900X",
-      "aliases": [
-        "AMD Ryzen 9 5900X 12-Core Processor"
-      ],
-      "count": 1,
-      "notes": "Desktop CPU.",
-      "in_datasheet": false
-    },
-    {
-      "name": "Intel Core i5-13500",
-      "aliases": [
-        "13th Gen Intel(R) Core(TM) i5-13500"
-      ],
-      "count": 1,
-      "notes": "Desktop CPU.",
-      "in_datasheet": false
-    },
-    {
-      "name": "Intel Core i7-4770",
-      "aliases": [
-        "Intel(R) Core(TM) i7-4770 CPU @ 3.40GHz"
-      ],
-      "count": 1,
-      "notes": "Desktop CPU.",
-      "in_datasheet": false
-    },
-    {
-      "name": "Intel Core i7-8565U",
-      "aliases": [
-        "Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz"
-      ],
-      "count": 3,
-      "notes": "Mobile (laptop) CPU.",
       "in_datasheet": false
     },
     {
@@ -2462,7 +2336,246 @@
       "in_datasheet": false
     }
   ],
-  "drives": [],
+  "drives": [
+    {
+      "name": "Huawei HWE32P43008L000N",
+      "aliases": [
+        "Huawei Technologies Co., Ltd. HWE32P43008L000N"
+      ],
+      "count": 2,
+      "notes": "Huawei enterprise NVMe SSD; the series is not identifiable from the part number.",
+      "type": "SSD",
+      "interface": "NVMe",
+      "in_datasheet": false
+    },
+    {
+      "name": "Intel (Solidigm) SSD D7-P5520",
+      "aliases": [
+        "Intel Corporation INTEL SSDPF2KX019T1M",
+        "Intel Corporation INTEL SSDPF2KX076T1"
+      ],
+      "count": 8,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "1.92 TB",
+        "7.68 TB"
+      ],
+      "in_datasheet": false,
+      "form_factor": "U.2"
+    },
+    {
+      "name": "Intel Optane SSD 900P",
+      "aliases": [
+        "Intel Corporation INTEL SSDPED1D480GA"
+      ],
+      "count": 1,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "480 GB"
+      ],
+      "in_datasheet": false,
+      "form_factor": "HHHL add-in card"
+    },
+    {
+      "name": "Intel SSD DC P4101",
+      "aliases": [
+        "Intel Corporation INTEL SSDPEKKA256G8",
+        "Intel Corporation INTEL SSDPEKKA512G8"
+      ],
+      "count": 3,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "256 GB",
+        "512 GB"
+      ],
+      "in_datasheet": false,
+      "form_factor": "M.2"
+    },
+    {
+      "name": "Intel SSD DC P4510",
+      "aliases": [
+        "Intel Corporation INTEL SSDPE2KX010T8",
+        "Intel Corporation INTEL SSDPE2KX020T8",
+        "Intel Corporation INTEL SSDPE2KX040T8"
+      ],
+      "count": 14,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "1 TB",
+        "2 TB",
+        "4 TB"
+      ],
+      "in_datasheet": false,
+      "form_factor": "U.2"
+    },
+    {
+      "name": "Kingston DC3000ME",
+      "aliases": [
+        "Kingston Technology Company, Inc. KINGSTON SEDC3000ME3T8"
+      ],
+      "count": 8,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "3.84 TB"
+      ],
+      "in_datasheet": false,
+      "form_factor": "U.2"
+    },
+    {
+      "name": "Micron 3400",
+      "aliases": [
+        "Micron Technology Inc Micron_3400_MTFDKBA512TFH"
+      ],
+      "count": 1,
+      "notes": "Client (desktop/laptop) drive.",
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "512 GB"
+      ],
+      "in_datasheet": false,
+      "form_factor": "M.2"
+    },
+    {
+      "name": "Micron 7450 MAX",
+      "aliases": [
+        "Micron Technology Inc Micron_7450_MTFDKBA400TFS"
+      ],
+      "count": 1,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "400 GB"
+      ],
+      "in_datasheet": false,
+      "form_factor": "M.2"
+    },
+    {
+      "name": "Micron 7450 PRO",
+      "aliases": [
+        "Micron_7450_MTFDKCC3T8TFR",
+        "Micron Technology Inc 7450 PRO NVMe SSD",
+        "Micron Technology Inc Micron_7450_MTFDKBA480TFR"
+      ],
+      "count": 17,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "3.84 TB",
+        "480 GB"
+      ],
+      "in_datasheet": false,
+      "form_factor": "U.3 / M.2"
+    },
+    {
+      "name": "Samsung 970 EVO Plus",
+      "aliases": [
+        "Samsung Electronics Co Ltd Samsung SSD 970 EVO Plus 2TB"
+      ],
+      "count": 1,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "2 TB"
+      ],
+      "in_datasheet": true,
+      "form_factor": "M.2 2280"
+    },
+    {
+      "name": "Samsung 980",
+      "aliases": [
+        "Samsung Electronics Co Ltd Samsung SSD 980 1TB"
+      ],
+      "count": 1,
+      "notes": "Client (desktop/laptop) drive.",
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "1 TB"
+      ],
+      "in_datasheet": false,
+      "form_factor": "M.2"
+    },
+    {
+      "name": "Samsung 980 PRO",
+      "aliases": [
+        "Samsung Electronics Co Ltd Samsung SSD 980 PRO 250GB"
+      ],
+      "count": 2,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "250 GB"
+      ],
+      "in_datasheet": true,
+      "form_factor": "M.2"
+    },
+    {
+      "name": "Samsung PM9A1",
+      "aliases": [
+        "Samsung Electronics Co Ltd SAMSUNG MZVL21T0HCLR-00B00",
+        "Samsung Electronics Co Ltd SAMSUNG MZVL2512HCJQ-00B00"
+      ],
+      "count": 6,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "1 TB",
+        "512 GB"
+      ],
+      "in_datasheet": false,
+      "form_factor": "M.2"
+    },
+    {
+      "name": "Samsung PM9A1a",
+      "aliases": [
+        "Samsung Electronics Co Ltd SAMSUNG MZVL2512HDJD-00B07"
+      ],
+      "count": 1,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "512 GB"
+      ],
+      "in_datasheet": false,
+      "form_factor": "M.2"
+    },
+    {
+      "name": "Samsung PM9A3",
+      "aliases": [
+        "SAMSUNG MZQL23T8HCLS-00A07",
+        "Samsung Electronics Co Ltd SAMSUNG MZQL21T9HCJR-00A07"
+      ],
+      "count": 7,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "3.84 TB",
+        "1.92 TB"
+      ],
+      "in_datasheet": true,
+      "form_factor": "U.2"
+    },
+    {
+      "name": "Western Digital SN850X",
+      "aliases": [
+        "Sandisk Corp WD_BLACK SN850X 1000GB"
+      ],
+      "count": 12,
+      "type": "SSD",
+      "interface": "NVMe",
+      "capacities": [
+        "1 TB"
+      ],
+      "in_datasheet": true,
+      "form_factor": "M.2"
+    }
+  ],
   "storage_controllers": [
     {
       "name": "Adaptec Series 8 (12G SAS)",
@@ -2736,8 +2849,53 @@
   "excluded": [
     {
       "type": "cpu",
+      "text": "13th Gen Intel(R) Core(TM) i5-13500",
+      "reason": "desktop CPU (not server hardware)"
+    },
+    {
+      "type": "cpu",
+      "text": "AMD Ryzen 5 3600 6-Core Processor",
+      "reason": "desktop CPU (not server hardware)"
+    },
+    {
+      "type": "cpu",
+      "text": "AMD Ryzen 7 3700X 8-Core Processor",
+      "reason": "desktop CPU (not server hardware)"
+    },
+    {
+      "type": "cpu",
+      "text": "AMD Ryzen 7 5800X 8-Core Processor",
+      "reason": "desktop CPU (not server hardware)"
+    },
+    {
+      "type": "cpu",
+      "text": "AMD Ryzen 7 7700 8-Core Processor",
+      "reason": "desktop CPU (not server hardware)"
+    },
+    {
+      "type": "cpu",
+      "text": "AMD Ryzen 9 3900 12-Core Processor",
+      "reason": "desktop CPU (not server hardware)"
+    },
+    {
+      "type": "cpu",
+      "text": "AMD Ryzen 9 5900X 12-Core Processor",
+      "reason": "desktop CPU (not server hardware)"
+    },
+    {
+      "type": "cpu",
       "text": "Common KVM processor",
       "reason": "virtual CPU"
+    },
+    {
+      "type": "cpu",
+      "text": "Intel(R) Core(TM) i7-4770 CPU @ 3.40GHz",
+      "reason": "desktop CPU (not server hardware)"
+    },
+    {
+      "type": "cpu",
+      "text": "Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz",
+      "reason": "laptop CPU (not server hardware)"
     },
     {
       "type": "cpu",
@@ -2756,6 +2914,26 @@
     },
     {
       "type": "server_model",
+      "text": "ASRock To Be Filled By O.E.M. B450 Pro4 R2.0",
+      "reason": "consumer/workstation motherboard (not server hardware)"
+    },
+    {
+      "type": "server_model",
+      "text": "ASUSTeK COMPUTER INC. System Product Name PRIME B760M-A D4 v:Rev 1.xx",
+      "reason": "consumer/workstation motherboard (not server hardware)"
+    },
+    {
+      "type": "server_model",
+      "text": "ASUSTeK COMPUTER INC. System Product Name Pro WS 565-ACE v:Rev X.0x",
+      "reason": "consumer/workstation motherboard (not server hardware)"
+    },
+    {
+      "type": "server_model",
+      "text": "ASUSTeK COMPUTER INC. System Product Name Pro WS 665-ACE v:Rev 1.xx",
+      "reason": "consumer/workstation motherboard (not server hardware)"
+    },
+    {
+      "type": "server_model",
       "text": "Intel Corporation VMware Virtual Platform 440BX Desktop Reference Platform v:None",
       "reason": "virtual machine"
     },
@@ -2763,6 +2941,11 @@
       "type": "server_model",
       "text": "Intel Corporation VMware20,1 440BX Desktop Reference Platform v:None",
       "reason": "virtual machine"
+    },
+    {
+      "type": "server_model",
+      "text": "LENOVO 10AR003FCR SHARKBAY v:0B98401 PRO",
+      "reason": "consumer/workstation motherboard (not server hardware)"
     },
     {
       "type": "server_model",
@@ -2816,18 +2999,8 @@
     },
     {
       "type": "storage_controller",
-      "text": "Micron_7450_MTFDKCC3T8TFR",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
       "text": "PC standard floppy disk controller",
       "reason": "BMC virtual media or legacy floppy"
-    },
-    {
-      "type": "storage_controller",
-      "text": "SAMSUNG MZQL23T8HCLS-00A07",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
     },
     {
       "type": "storage_controller",
@@ -2956,11 +3129,6 @@
     },
     {
       "type": "storage_controller",
-      "text": "Huawei Technologies Co., Ltd. HWE32P43008L000N",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
       "text": "Intel Corporation 631xESB/632xESB/3100 Chipset SATA IDE Controller",
       "reason": "chipset (onboard) SATA/AHCI/IDE controller"
     },
@@ -3081,46 +3249,6 @@
     },
     {
       "type": "storage_controller",
-      "text": "Intel Corporation INTEL SSDPE2KX010T8",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Intel Corporation INTEL SSDPE2KX020T8",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Intel Corporation INTEL SSDPE2KX040T8",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Intel Corporation INTEL SSDPED1D480GA",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Intel Corporation INTEL SSDPEKKA256G8",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Intel Corporation INTEL SSDPEKKA512G8",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Intel Corporation INTEL SSDPF2KX019T1M",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Intel Corporation INTEL SSDPF2KX076T1",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
       "text": "Intel Corporation Intel Corporation",
       "reason": "broken entry (no model)"
     },
@@ -3171,31 +3299,6 @@
     },
     {
       "type": "storage_controller",
-      "text": "Kingston Technology Company, Inc. KINGSTON SEDC3000ME3T8",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Micron Technology Inc 7450 PRO NVMe SSD",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Micron Technology Inc Micron_3400_MTFDKBA512TFH",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Micron Technology Inc Micron_7450_MTFDKBA400TFS",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Micron Technology Inc Micron_7450_MTFDKBA480TFR",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
       "text": "Ours Technology, Inc.",
       "reason": "USB storage, card reader or SD module"
     },
@@ -3232,42 +3335,7 @@
     {
       "type": "storage_controller",
       "text": "Samsung Electronics Co Ltd NVMe SSD Controller PM9A1/PM9A3/980PRO",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Samsung Electronics Co Ltd SAMSUNG MZQL21T9HCJR-00A07",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Samsung Electronics Co Ltd SAMSUNG MZVL21T0HCLR-00B00",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Samsung Electronics Co Ltd SAMSUNG MZVL2512HCJQ-00B00",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Samsung Electronics Co Ltd SAMSUNG MZVL2512HDJD-00B07",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Samsung Electronics Co Ltd Samsung SSD 970 EVO Plus 2TB",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Samsung Electronics Co Ltd Samsung SSD 980 1TB",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Samsung Electronics Co Ltd Samsung SSD 980 PRO 250GB",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
+      "reason": "controller name shared by the Samsung PM9A1, PM9A3 and 980 PRO; the drive model is not identifiable"
     },
     {
       "type": "storage_controller",
@@ -3293,11 +3361,6 @@
       "type": "storage_controller",
       "text": "SanDisk SanDisk 3.2 Gen1",
       "reason": "USB storage, card reader or SD module"
-    },
-    {
-      "type": "storage_controller",
-      "text": "Sandisk Corp WD_BLACK SN850X 1000GB",
-      "reason": "NVMe drive (listed as a controller), not a storage controller"
     },
     {
       "type": "storage_controller",
@@ -3353,6 +3416,64 @@
       "type": "storage_controller",
       "text": "iLO Virtual USB Key",
       "reason": "USB storage, card reader or SD module"
+    }
+  ],
+  "removed": [
+    {
+      "type": "cpu",
+      "name": "Intel Core i5-13500"
+    },
+    {
+      "type": "cpu",
+      "name": "AMD Ryzen 5 3600"
+    },
+    {
+      "type": "cpu",
+      "name": "AMD Ryzen 7 3700X"
+    },
+    {
+      "type": "cpu",
+      "name": "AMD Ryzen 7 5800X"
+    },
+    {
+      "type": "cpu",
+      "name": "AMD Ryzen 7 7700"
+    },
+    {
+      "type": "cpu",
+      "name": "AMD Ryzen 9 3900"
+    },
+    {
+      "type": "cpu",
+      "name": "AMD Ryzen 9 5900X"
+    },
+    {
+      "type": "cpu",
+      "name": "Intel Core i7-4770"
+    },
+    {
+      "type": "cpu",
+      "name": "Intel Core i7-8565U"
+    },
+    {
+      "type": "server_model",
+      "name": "ASRock B450 Pro4"
+    },
+    {
+      "type": "server_model",
+      "name": "ASUS PRIME B760M-A D4"
+    },
+    {
+      "type": "server_model",
+      "name": "ASUS Pro WS 565-ACE"
+    },
+    {
+      "type": "server_model",
+      "name": "ASUS Pro WS 665-ACE"
+    },
+    {
+      "type": "server_model",
+      "name": "Lenovo 10AR003FCR"
     }
   ]
 }
