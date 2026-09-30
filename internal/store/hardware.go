@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -113,6 +114,39 @@ func updateSWAnalytics(tx *sql.Tx) error {
 		}
 	}
 	return seedSWAnalytics(tx)
+}
+
+var swPeriodRe = regexp.MustCompile(` \(highest daily value, [^)]*\)`)
+
+// shortenSWCounts (migration 6) drops the "(highest daily value, <from> to
+// <to>)" part of SW Analytics counts from comments, keeping "SW Analytics
+// count: N." and everything else as it is.
+func shortenSWCounts(tx *sql.Tx) error {
+	rows, err := tx.Query(`SELECT id, comment FROM hw_parts WHERE comment LIKE '%(highest daily value,%'`)
+	if err != nil {
+		return err
+	}
+	type fix struct {
+		id      int64
+		comment string
+	}
+	var fixes []fix
+	for rows.Next() {
+		var f fix
+		if err := rows.Scan(&f.id, &f.comment); err != nil {
+			rows.Close()
+			return err
+		}
+		f.comment = swPeriodRe.ReplaceAllString(f.comment, "")
+		fixes = append(fixes, f)
+	}
+	rows.Close()
+	for _, f := range fixes {
+		if _, err := tx.Exec(`UPDATE hw_parts SET comment = ? WHERE id = ?`, f.comment, f.id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // swCount picks the "SW Analytics count: ..." sentence out of a comment.

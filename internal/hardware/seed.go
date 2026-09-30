@@ -117,8 +117,7 @@ func (f *seedFile) parts(status, source string) []Part {
 		for _, e := range es {
 			p := convert(cat, e, status, source)
 			if source == SourceSWAnalytics && e.Count > 0 {
-				p.Comment = joinComment(p.Comment, fmt.Sprintf("SW Analytics count: %d (highest daily value, %s to %s).",
-					e.Count, f.Period.From, f.Period.To))
+				p.Comment = joinComment(p.Comment, fmt.Sprintf("SW Analytics count: %d.", e.Count))
 			}
 			out = append(out, p)
 		}

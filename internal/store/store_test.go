@@ -89,3 +89,29 @@ func TestUpdateSWAnalyticsRemoves(t *testing.T) {
 		t.Error("a manual entry must not be removed")
 	}
 }
+
+func TestShortenSWCounts(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	old := "Motherboard: X11DPT-PS. SW Analytics count: 24 (highest daily value, 2026-07-03 to 2026-09-30). Rack 4."
+	st.db.Exec(`INSERT INTO hw_parts(category, name, name_key, status, source, comment, created_at, updated_at)
+		VALUES('server_model', 'Test box', 'testbox', 'supported', 'sw_analytics', ?, '', '')`, old)
+	tx, _ := st.db.Begin()
+	if err := shortenSWCounts(tx); err != nil {
+		t.Fatal(err)
+	}
+	tx.Commit()
+	var got string
+	st.db.QueryRow(`SELECT comment FROM hw_parts WHERE name = 'Test box'`).Scan(&got)
+	if got != "Motherboard: X11DPT-PS. SW Analytics count: 24. Rack 4." {
+		t.Errorf("got %q", got)
+	}
+	var n int
+	st.db.QueryRow(`SELECT COUNT(*) FROM hw_parts WHERE comment LIKE '%highest daily%'`).Scan(&n)
+	if n != 0 {
+		t.Errorf("%d seeded comments still carry the period", n)
+	}
+}

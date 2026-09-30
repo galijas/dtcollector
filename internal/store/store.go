@@ -109,6 +109,7 @@ var migrations = []string{
 	`CREATE INDEX hw_parts_source ON hw_parts(source);`,
 
 	"", // 5: SW Analytics update (hook only)
+	"", // 6: shorter SW Analytics comments (hook only)
 }
 
 // migrationHooks run after a migration's SQL, in the same transaction.
@@ -116,6 +117,7 @@ var migrationHooks = map[int]func(*sql.Tx) error{
 	2: seedHardware,
 	3: seedSWAnalytics,
 	4: updateSWAnalytics,
+	5: shortenSWCounts,
 }
 
 func (s *Store) migrate() error {
