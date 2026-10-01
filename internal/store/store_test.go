@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -51,5 +52,34 @@ func TestMigrationBackfill(t *testing.T) {
 	}
 	if r := got["hardware"]; r.Kind != "hardware" || r.SourceLabel() != "SwarmDialer 1.5.0" {
 		t.Errorf("hardware row: kind %q label %q", r.Kind, r.SourceLabel())
+	}
+}
+
+func TestRemoveVirtualParts(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for _, r := range [][3]string{{"Virtual CD", "swhw", "virtualcd"}, {"Virtual Floppy", "test_script", "virtualfloppy"},
+		{"Real SSD", "swhw", "realssd"}, {"Virtual Lab Box", "manual", "virtuallabbox"}} {
+		st.db.Exec(`INSERT INTO hw_parts(category, name, name_key, status, source, created_at, updated_at)
+			VALUES('drive', ?, ?, 'supported', ?, '', '')`, r[0], r[2], r[1])
+	}
+	tx, _ := st.db.Begin()
+	if err := removeVirtualParts(tx); err != nil {
+		t.Fatal(err)
+	}
+	tx.Commit()
+	var left []string
+	rows, _ := st.db.Query(`SELECT name FROM hw_parts WHERE category = 'drive' AND name IN ('Virtual CD', 'Virtual Floppy', 'Real SSD', 'Virtual Lab Box') ORDER BY name`)
+	for rows.Next() {
+		var n string
+		rows.Scan(&n)
+		left = append(left, n)
+	}
+	rows.Close()
+	if strings.Join(left, ",") != "Real SSD,Virtual Lab Box" {
+		t.Errorf("left: %v", left)
 	}
 }

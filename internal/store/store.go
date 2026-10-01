@@ -126,11 +126,14 @@ var migrations = []string{
 
 	// 8: account types. Existing accounts keep full access.
 	`ALTER TABLE admins ADD COLUMN role TEXT NOT NULL DEFAULT 'admin';`,
+
+	"", // 9: remove virtual devices that reports added (hook only)
 }
 
 // migrationHooks run after a migration's SQL, in the same transaction.
 var migrationHooks = map[int]func(*sql.Tx) error{
 	2: seedHardware,
+	8: removeVirtualParts,
 }
 
 func (s *Store) migrate() error {

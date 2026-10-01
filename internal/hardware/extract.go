@@ -15,6 +15,21 @@ func usable(s string) bool {
 	return s != "" && !placeholderRe.MatchString(s)
 }
 
+// virtualRe marks virtual devices (BMC virtual media, hypervisor disks and
+// NICs, VM platforms), which are not hardware to validate.
+var virtualRe = regexp.MustCompile(`(?i)virtual|virtio|qemu|vmware|vbox`)
+
+// IsVirtual reports whether a part name (or a raw name it was seen as) is a
+// virtual device.
+func IsVirtual(names ...string) bool {
+	for _, n := range names {
+		if virtualRe.MatchString(n) {
+			return true
+		}
+	}
+	return false
+}
+
 // FromReport lists the hardware parts a report describes: server model,
 // CPU, NIC models, drives and storage controllers. They are added as
 // supported: the report shows the hardware running SERVERware.
@@ -23,6 +38,9 @@ func FromReport(r *report.Report) []Part {
 	var out []Part
 	seen := map[string]bool{}
 	add := func(p Part) {
+		if IsVirtual(append([]string{p.Name}, p.Aliases...)...) {
+			return
+		}
 		p.Status = StatusSupported
 		k := p.Category + "/" + Key(p.Category, p.Name)
 		if seen[k] {

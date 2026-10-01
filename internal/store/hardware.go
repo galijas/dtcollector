@@ -55,6 +55,37 @@ func seedHardware(tx *sql.Tx) error {
 	return nil
 }
 
+// removeVirtualParts (migration 9) deletes virtual devices that reports added
+// before reports were filtered for them. Manual and seeded entries stay.
+func removeVirtualParts(tx *sql.Tx) error {
+	rows, err := tx.Query(`SELECT id, name, aliases FROM hw_parts WHERE source IN (?, ?)`,
+		hardware.SourceTestScript, hardware.SourceSWHW)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		var name, aliases string
+		if err := rows.Scan(&id, &name, &aliases); err != nil {
+			rows.Close()
+			return err
+		}
+		var a []string
+		json.Unmarshal([]byte(aliases), &a)
+		if hardware.IsVirtual(append([]string{name}, a...)...) {
+			ids = append(ids, id)
+		}
+	}
+	rows.Close()
+	for _, id := range ids {
+		if _, err := tx.Exec(`DELETE FROM hw_parts WHERE id = ?`, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func insertPart(x execer, p *hardware.Part) (int64, error) {
 	t := now()
 	if p.CreatedAt == "" {

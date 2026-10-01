@@ -126,3 +126,25 @@ func TestFirstGenE5Key(t *testing.T) {
 		t.Error("the first-generation E5 \" 0\" suffix must not affect matching")
 	}
 }
+
+func TestVirtualDevicesSkipped(t *testing.T) {
+	r := report.SampleHardware(report.SampleHosts[0], 5, time.Now(), true)
+	h := &r.Environment.Host
+	h.Disks = append(h.Disks, report.Disk{Model: "Virtual CD"}, report.Disk{Model: "Virtual Floppy"},
+		report.Disk{Model: "QEMU HARDDISK"}, report.Disk{Model: "SAMSUNG MZ7LH480HAHQ-00005", Type: "ssd"})
+	h.NICs = append(h.NICs, report.NICModel{Vendor: "Red Hat, Inc.", Product: "Virtio network device"})
+	h.SystemVendor, h.SystemModel = "VMware, Inc.", "VMware Virtual Platform"
+	names := map[string]bool{}
+	for _, p := range FromReport(r) {
+		names[p.Name] = true
+		if IsVirtual(p.Name) {
+			t.Errorf("virtual part kept: %s", p.Name)
+		}
+	}
+	if !names["SAMSUNG MZ7LH480HAHQ-00005"] {
+		t.Error("a real drive was dropped")
+	}
+	if names["VMware VMware Virtual Platform"] || names["VMware Virtual Platform"] {
+		t.Error("VM platform kept as a server model")
+	}
+}

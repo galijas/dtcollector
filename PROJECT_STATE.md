@@ -84,6 +84,9 @@ Done:
   and empty speed/driver/type are merged in). Hardware-only reports are
   "SWHW data", benchmark reports "Test Script". Existing reports were not
   imported, at the user's request.
+- Virtual devices are skipped (2026-10-01): any part whose name or raw
+  name contains virtual / virtio / qemu / vmware / vbox (`hardware.IsVirtual`).
+  Migration 9 removed the ones reports had added (report sources only).
 - Matching is conservative (exact after normalization), so a lspci-style
   name like "Intel Ethernet Controller X550" is added next to the
   datasheet's "Intel X550"; admins merge by deleting one. Smarter matching
