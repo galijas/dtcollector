@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	_ "time/tzdata" // Central European time without relying on the host's zoneinfo
 
 	"dtcollector/internal/store"
 )
@@ -80,6 +81,7 @@ func New(cfg Config) (*Server, error) {
 	ui.HandleFunc("POST /hardware/{id}/delete", s.adminOnly(s.handlePartDelete))
 
 	ui.HandleFunc("GET /reports", s.admin(s.handleReports))
+	ui.HandleFunc("POST /reports/delete", s.adminOnly(s.handleReportsDelete))
 	ui.HandleFunc("GET /reports/{id}", s.admin(s.handleReport))
 	ui.HandleFunc("GET /reports/{id}/json", s.admin(s.handleReportJSON))
 	ui.HandleFunc("POST /reports/{id}/note", s.admin(s.handleReportNote))

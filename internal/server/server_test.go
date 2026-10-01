@@ -257,7 +257,7 @@ func TestPages(t *testing.T) {
 	checks := map[string][]string{
 		"/reports":                               {"Compare selected", "AMD EPYC 7443P", "Test site"},
 		"/reports?q=EPYC":                        {"AMD EPYC 7443P"},
-		"/reports?profile=standard:1&sw=5.2.1":   {"Xeon(R) Gold 6338"},
+		"/reports?kind=benchmark&key=1":          {"Xeon(R) Gold 6338", "Showing 1–3 of 3 reports"},
 		"/reports/" + ids[0]:                     {"ramp_norec_low", "Environment", "pbxware_mt", "Target reached"},
 		"/compare?ids=" + strings.Join(ids, ","): {"Compare 3 reports", "Max concurrent calls", "best", "MP3 conversion delay avg"},
 		"/keys":                                  {"Test site", "Active", "API (Upload) Keys"},
@@ -698,5 +698,70 @@ func TestAccountTypes(t *testing.T) {
 	}
 	if resp := e.form(e.client, "/reports/"+r.ReportID+"/delete", nil); resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("Admin delete report: %d", resp.StatusCode)
+	}
+}
+
+func TestReportsPagingAndBulkDelete(t *testing.T) {
+	e := newEnv(t)
+	var ids []string
+	for i := 0; i < 45; i++ {
+		r := report.SampleHardware(report.SampleHosts[i%3], uint64(200+i), time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(i)*time.Hour), true)
+		b, _ := json.Marshal(r)
+		if code, out := e.upload(e.key, b, false); code != 201 {
+			t.Fatalf("upload: %d %v", code, out)
+		}
+		ids = append(ids, r.ReportID)
+	}
+	_, p1 := e.get(e.client, "/reports")
+	if !strings.Contains(p1, "Showing 1–20 of 45 reports") || strings.Count(p1, `name="ids"`) != 20 ||
+		!strings.Contains(p1, `href="/reports?page=3"`) || !strings.Contains(p1, ids[44]) || strings.Contains(p1, ids[0]) {
+		t.Error("page 1")
+	}
+	_, p3 := e.get(e.client, "/reports?page=3&kind=hardware")
+	if !strings.Contains(p3, "Showing 41–45 of 45 reports") || strings.Count(p3, `name="ids"`) != 5 || !strings.Contains(p3, ids[0]) {
+		t.Error("page 3")
+	}
+	if !strings.Contains(p3, "kind=hardware&amp;page=2") {
+		t.Error("pager links must keep the filters")
+	}
+	_, p9 := e.get(e.client, "/reports?page=99")
+	if !strings.Contains(p9, "Showing 41–45 of 45") {
+		t.Error("a page past the end shows the last page")
+	}
+	if !strings.Contains(p1, `id="select-all"`) || !strings.Contains(p1, `id="delete-btn"`) || !strings.Contains(p1, "CEST") {
+		t.Error("select-all, Delete selected or CEST time missing")
+	}
+	if strings.Contains(p1, "SERVERware</th>") || strings.Contains(p1, "PBXware</th>") || strings.Contains(p1, "Profile</th>") {
+		t.Error("removed columns are still shown")
+	}
+
+	// Bulk delete: Admin only, back to the same page with its filters.
+	req, _ := http.NewRequest("POST", e.ts.URL+"/reports/delete", strings.NewReader(url.Values{
+		"ids": {ids[0], ids[1], "not-an-id"}, "return": {"/reports?kind=hardware&page=3"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	resp, err := e.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/reports?kind=hardware&page=3&m=deletedsel" {
+		t.Errorf("bulk delete: %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if n, _ := e.st.CountReports(store.ReportFilter{}); n != 43 {
+		t.Errorf("%d reports left, want 43", n)
+	}
+	h, _ := auth.HashPassword("user password 123")
+	e.st.CreateAdmin("viewer", h, store.RoleUser)
+	user := e.login(t, "viewer", "user password 123")
+	if r := e.form(user, "/reports/delete", url.Values{"ids": {ids[2]}}); r.StatusCode != http.StatusForbidden {
+		t.Errorf("User bulk delete: %d", r.StatusCode)
+	}
+	if _, page := e.get(user, "/reports"); strings.Contains(page, `id="delete-btn"`) {
+		t.Error("User sees Delete selected")
+	}
+	// The return path can't point elsewhere.
+	if r := e.form(e.client, "/reports/delete", url.Values{"ids": {ids[3]}, "return": {"https://evil.example/"}}); r.Header.Get("Location") != "/reports?m=deletedsel" {
+		t.Errorf("foreign return path: %q", r.Header.Get("Location"))
 	}
 }

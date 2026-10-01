@@ -529,6 +529,7 @@ type ReportFilter struct {
 	From, To       time.Time
 	IDs            []string
 	Limit          int
+	Offset         int
 }
 
 const reportCols = `r.id, r.received_at, r.created_at, COALESCE(k.name, ''), r.profile_name, r.profile_version,
@@ -536,7 +537,7 @@ const reportCols = `r.id, r.received_at, r.created_at, COALESCE(k.name, ''), r.p
 	r.cpu_cores, r.cpu_threads, r.memory_bytes, r.disks, r.pbxware, r.test_count, r.results_json,
 	r.note, r.body_size, r.kind, r.source_name, r.source_version, r.system_vendor, r.system_model`
 
-func (s *Store) ListReports(f ReportFilter) ([]ReportRow, error) {
+func (f ReportFilter) where() (string, []any) {
 	var where []string
 	var args []any
 	if f.Kind != "" {
@@ -575,13 +576,27 @@ func (s *Store) ListReports(f ReportFilter) ([]ReportRow, error) {
 			args = append(args, id)
 		}
 	}
-	q := `SELECT ` + reportCols + ` FROM reports r LEFT JOIN upload_keys k ON k.id = r.upload_key_id`
-	if len(where) > 0 {
-		q += " WHERE " + strings.Join(where, " AND ")
+	if len(where) == 0 {
+		return "", args
 	}
-	q += " ORDER BY r.created_at DESC"
+	return " WHERE " + strings.Join(where, " AND "), args
+}
+
+const reportFrom = ` FROM reports r LEFT JOIN upload_keys k ON k.id = r.upload_key_id`
+
+// CountReports counts the reports matching f (Limit and Offset are ignored).
+func (s *Store) CountReports(f ReportFilter) (int, error) {
+	where, args := f.where()
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*)`+reportFrom+where, args...).Scan(&n)
+	return n, err
+}
+
+func (s *Store) ListReports(f ReportFilter) ([]ReportRow, error) {
+	where, args := f.where()
+	q := `SELECT ` + reportCols + reportFrom + where + " ORDER BY r.created_at DESC, r.id"
 	if f.Limit > 0 {
-		q += fmt.Sprintf(" LIMIT %d", f.Limit)
+		q += fmt.Sprintf(" LIMIT %d OFFSET %d", f.Limit, max(f.Offset, 0))
 	}
 	rows, err := s.db.Query(q, args...)
 	if err != nil {

@@ -1,7 +1,7 @@
 {{define "content"}}
 {{$d := .Data}}
 <h1>Reports</h1>
-<p class="sub">Benchmark reports from SwarmDialer, and hardware-only reports (host inventory, no tests) from SwarmDialer or the hardware collection script. Select two or more benchmark reports of the same profile version to compare them.</p>
+<p class="sub">Benchmark reports from SwarmDialer, and hardware-only reports (host inventory, no tests) from SwarmDialer or the hardware collection script. Select two or more benchmark reports to compare them.</p>
 
 <form class="filters row" method="get" action="/reports">
   <label>Type
@@ -11,19 +11,6 @@
       <option value="hardware"{{if eq (index $d.Q "kind") "hardware"}} selected{{end}}>Hardware only</option>
     </select>
   </label>
-  <label>Profile
-    <select name="profile">
-      <option value="">All</option>
-      {{range $d.Opts.Profiles}}{{$v := printf "%s:%d" .Name .Version}}<option value="{{$v}}"{{if eq $v (index $d.Q "profile")}} selected{{end}}>{{.Name}} v{{.Version}} ({{.Count}})</option>{{end}}
-    </select>
-  </label>
-  <label>SERVERware
-    <select name="sw">
-      <option value="">All</option>
-      {{range $d.Opts.Serverware}}<option{{if eq . (index $d.Q "sw")}} selected{{end}}>{{.}}</option>{{end}}
-    </select>
-  </label>
-  <label>PBXware version <input type="text" name="pbx" size="10" value="{{index $d.Q "pbx"}}" placeholder="e.g. 8.2"></label>
   <label>Source
     <select name="key">
       <option value="">All</option>
@@ -39,37 +26,46 @@
 
 {{if $d.Rows}}
 <form method="get" action="/compare" id="compare-form">
+<input type="hidden" name="return" value="{{$d.ReturnPath}}">
 <div class="selectbar">
   <button class="primary" type="submit" id="compare-btn" disabled>Compare selected</button>
-  <span class="muted" id="compare-hint">Select 2 to 8 benchmark reports of the same profile version.</span>
+  <span class="muted" id="compare-hint">Select 2 to 8 benchmark reports to compare.</span>
+  {{if .Admin.IsAdmin}}<button class="danger-fill" type="submit" id="delete-btn" formaction="/reports/delete" formmethod="post" disabled>Delete selected</button>{{end}}
 </div>
-<div class="table-wrap"><table>
+<div class="table-wrap"><table class="reports-table">
 <thead><tr>
-  <th><span class="muted">Select</span></th><th>Created</th><th>Host hardware</th><th>SERVERware</th><th>PBXware</th>
-  <th>Profile</th><th>Max concurrent calls per test</th><th>Source</th><th>Note</th>
+  <th class="select-col"><input type="checkbox" id="select-all" aria-label="Select all reports on this page" title="Select all on this page"></th>
+  <th>Source</th><th>Created</th><th>Host hardware</th><th>Max concurrent calls per test</th><th>Note</th>
 </tr></thead>
 <tbody>
 {{range $d.Rows}}
 <tr>
-  <td><input type="checkbox" name="ids" value="{{.ID}}" data-profile="{{.Profile}}" data-kind="{{.Kind}}" aria-label="Select report {{.ID}}"></td>
-  <td class="nowrap"><a href="/reports/{{.ID}}">{{ts .CreatedAt}}</a></td>
+  <td class="select-col"><input type="checkbox" name="ids" value="{{.ID}}" data-profile="{{.Profile}}" data-kind="{{.Kind}}" aria-label="Select report {{.ID}}"></td>
+  <td>{{if .KeyName}}{{.KeyName}}{{else}}<span class="muted">deleted key</span>{{end}}<div class="hw-sub">{{.SourceLabel}}</div></td>
+  <td class="nowrap"><a href="/reports/{{.ID}}">{{localTime .CreatedAt}}</a></td>
   <td>
     <div class="hw">{{if .CPUModel}}{{.CPUModel}}{{else}}Unknown CPU{{end}}</div>
     {{with .System}}<div class="hw-sub">{{.}}</div>{{end}}
     <div class="hw-sub">{{if .CPUSockets}}{{.CPUSockets}} × {{end}}{{.CPUCores}} cores / {{.CPUThreads}} threads · {{gib .MemoryBytes}} RAM{{if .Disks}} · {{.Disks}}{{end}}</div>
   </td>
-  <td class="nowrap">{{.ServerwareVersion}}{{if .ServerwareEdition}} <span class="muted">{{.ServerwareEdition}}</span>{{end}}</td>
-  <td class="nowrap">{{.PBXware}}</td>
-  <td class="nowrap">{{.Profile}}</td>
   <td>{{if .IsHardware}}<span class="chip hw">Hardware only</span>{{else}}<div class="chips">{{range .Results}}<span class="chip{{if ne .StopReason "target_reached"}} warn{{end}}" title="{{.ID}}: {{.MaxConcurrentCalls}} calls, {{stop .StopReason}}">{{.MaxConcurrentCalls}}</span>{{end}}</div>{{end}}</td>
-  <td>{{if .KeyName}}{{.KeyName}}{{else}}<span class="muted">deleted key</span>{{end}}<div class="hw-sub">{{.SourceLabel}}</div></td>
   <td>{{.Note}}</td>
 </tr>
 {{end}}
 </tbody></table></div>
 </form>
-{{if $d.Truncated}}<p class="muted">Showing the newest {{$d.Limit}} reports. Narrow the filters to see older ones.</p>{{end}}
-<p class="muted"><span class="chip warn">n</span> marks a test that stopped before reaching its target; hover it for the reason.</p>
+
+<nav class="pager" aria-label="Report pages">
+  <span class="muted">Showing {{$d.First}}–{{$d.Last}} of {{$d.Total}} reports</span>
+  {{if gt $d.Pages 1}}
+  <div class="pager-links">
+    {{if $d.PrevURL}}<a class="button" href="{{$d.PrevURL}}" rel="prev">Previous</a>{{else}}<span class="button disabled" aria-disabled="true">Previous</span>{{end}}
+    {{range $d.PageLinks}}{{if .Gap}}<span class="pager-gap">…</span>{{else if .Current}}<span class="button current" aria-current="page">{{.N}}</span>{{else}}<a class="button" href="{{.URL}}">{{.N}}</a>{{end}}{{end}}
+    {{if $d.NextURL}}<a class="button" href="{{$d.NextURL}}" rel="next">Next</a>{{else}}<span class="button disabled" aria-disabled="true">Next</span>{{end}}
+  </div>
+  {{end}}
+</nav>
+<p class="muted"><span class="chip warn">n</span> marks a test that stopped before reaching its target; hover it for the reason. Times are Central European time.</p>
 {{else}}
 <div class="card"><p>{{if $d.Filtered}}No reports match these filters.{{else}}No reports yet. Create an API key and enter it in SwarmDialer's Setup Wizard (or pass it to the hardware collection script); reports appear here when they are uploaded.{{end}}</p></div>
 {{end}}

@@ -22,9 +22,13 @@
   var compareForm = document.getElementById('compare-form');
   if (compareForm) {
     var btn = document.getElementById('compare-btn');
+    var del = document.getElementById('delete-btn');
+    var all = document.getElementById('select-all');
+    var back = compareForm.querySelector('input[name=return]');
     var hint = document.getElementById('compare-hint');
     var defaultHint = hint.textContent;
-    compareForm.addEventListener('change', function () {
+    var boxes = function () { return compareForm.querySelectorAll('input[name=ids]'); };
+    var sync = function () {
       var checked = compareForm.querySelectorAll('input[name=ids]:checked');
       var profiles = {}, hardware = false;
       checked.forEach(function (c) {
@@ -34,12 +38,41 @@
       var nProfiles = Object.keys(profiles).length;
       var ok = checked.length >= 2 && checked.length <= 8 && nProfiles === 1 && !hardware;
       btn.disabled = !ok;
-      if (hardware) hint.textContent = 'Hardware-only reports have no test results to compare; select benchmark reports.';
+      if (del) {
+        del.disabled = checked.length === 0;
+        del.textContent = checked.length ? 'Delete selected (' + checked.length + ')' : 'Delete selected';
+      }
+      if (all) {
+        var n = boxes().length;
+        all.checked = n > 0 && checked.length === n;
+        all.indeterminate = checked.length > 0 && checked.length < n;
+      }
+      if (hardware && checked.length > 1) hint.textContent = 'Hardware-only reports have no test results to compare; select benchmark reports.';
       else if (nProfiles > 1) hint.textContent = 'The selection mixes profile versions (' + Object.keys(profiles).join(', ') + '); compare within one.';
-      else if (checked.length > 8) hint.textContent = 'Select at most 8 reports.';
+      else if (checked.length > 8) hint.textContent = 'Select at most 8 reports to compare.';
       else if (checked.length) hint.textContent = checked.length + ' selected.';
       else hint.textContent = defaultHint;
-    });
+    };
+    if (all) {
+      all.addEventListener('change', function () {
+        boxes().forEach(function (c) { c.checked = all.checked; });
+        sync();
+      });
+    }
+    compareForm.addEventListener('change', function (e) { if (e.target !== all) sync(); });
+    // The return path only goes with a delete, so compare URLs stay clean.
+    if (back) back.disabled = true;
+    if (del) {
+      del.addEventListener('click', function (e) {
+        var n = compareForm.querySelectorAll('input[name=ids]:checked').length;
+        if (!window.confirm('Delete ' + n + ' selected report' + (n === 1 ? '' : 's') + ' permanently? This can\'t be undone.')) {
+          e.preventDefault();
+          return;
+        }
+        if (back) back.disabled = false;
+      });
+    }
+    sync();
   }
 
   // ---- charts ----

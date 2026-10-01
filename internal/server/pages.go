@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"math"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -35,6 +36,7 @@ type pageData struct {
 var flashes = map[string]string{
 	"note":         "Note saved.",
 	"deleted":      "Report deleted.",
+	"deletedsel":   "Selected reports deleted.",
 	"revoked":      "API key revoked. Anything using it can no longer upload.",
 	"admindeleted": "Account deleted.",
 	"rolechanged":  "Account type changed.",
@@ -43,6 +45,14 @@ var flashes = map[string]string{
 	"hwsaved":      "Hardware entry saved.",
 	"hwdeleted":    "Hardware entry deleted.",
 }
+
+var centralEurope = func() *time.Location {
+	loc, err := time.LoadLocation("Europe/Sarajevo")
+	if err != nil {
+		return time.FixedZone("CET", 3600)
+	}
+	return loc
+}()
 
 var funcs = template.FuncMap{
 	"role": func(r string) string {
@@ -65,11 +75,13 @@ var funcs = template.FuncMap{
 		return t.UTC().Format("2006-01-02 15:04:05 UTC")
 	},
 	"date": func(t time.Time) string { return t.UTC().Format("2006-01-02") },
-	"gib":  func(n int64) string { return report.HumanBytes(n, 1024) },
-	"gb":   func(n int64) string { return report.HumanBytes(n, 1000) },
-	"num":  fmtNum,
-	"pct":  func(v float64) string { return fmtNum(v) + "%" },
-	"stop": stopLabel,
+	// localTime shows Central European time (CEST in summer, CET in winter).
+	"localTime": func(t time.Time) string { return t.In(centralEurope).Format("02/01/2006 15:04 MST") },
+	"gib":       func(n int64) string { return report.HumanBytes(n, 1024) },
+	"gb":        func(n int64) string { return report.HumanBytes(n, 1000) },
+	"num":       fmtNum,
+	"pct":       func(v float64) string { return fmtNum(v) + "%" },
+	"stop":      stopLabel,
 	"stopClass": func(s string) string {
 		if s == "target_reached" {
 			return "ok"
@@ -190,33 +202,47 @@ func (s *Server) internalError(w http.ResponseWriter, r *http.Request, what stri
 
 // ---- reports ----
 
-type reportsData struct {
-	Rows      []store.ReportRow
-	Opts      *store.FilterOptions
-	Keys      []store.UploadKey
-	Q         map[string]string
-	Filtered  bool
-	Truncated bool
-	Limit     int
+const reportsPerPage = 20
+
+type pageLink struct {
+	N       int
+	URL     string
+	Current bool
+	Gap     bool // an ellipsis in place of skipped page numbers
 }
+
+type reportsData struct {
+	Rows       []store.ReportRow
+	Keys       []store.UploadKey
+	Q          map[string]string
+	Filtered   bool
+	Total      int
+	Page       int
+	Pages      int
+	First      int // 1-based index of the first row shown
+	Last       int
+	PrevURL    string
+	NextURL    string
+	PageLinks  []pageLink
+	ReturnPath string // this page, for actions that come back to it
+}
+
+var reportFilterKeys = []string{"kind", "key", "q", "from", "to"}
 
 func (s *Server) handleReports(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	d := reportsData{Q: map[string]string{}, Limit: 500}
-	for _, k := range []string{"kind", "profile", "sw", "pbx", "key", "q", "from", "to"} {
+	d := reportsData{Q: map[string]string{}}
+	keep := url.Values{}
+	for _, k := range reportFilterKeys {
 		d.Q[k] = strings.TrimSpace(q.Get(k))
 		if d.Q[k] != "" {
 			d.Filtered = true
+			keep.Set(k, d.Q[k])
 		}
 	}
-	f := store.ReportFilter{Serverware: d.Q["sw"], PBXware: d.Q["pbx"], Text: d.Q["q"], Limit: d.Limit + 1}
+	f := store.ReportFilter{Text: d.Q["q"]}
 	if k := d.Q["kind"]; k == report.KindBenchmark || k == report.KindHardware {
 		f.Kind = k
-	}
-	if p := d.Q["profile"]; p != "" {
-		name, ver, _ := strings.Cut(p, ":")
-		f.ProfileName = name
-		f.ProfileVersion, _ = strconv.Atoi(ver)
 	}
 	f.KeyID, _ = strconv.ParseInt(d.Q["key"], 10, 64)
 	if t, err := time.Parse("2006-01-02", d.Q["from"]); err == nil {
@@ -226,22 +252,93 @@ func (s *Server) handleReports(w http.ResponseWriter, r *http.Request) {
 		f.To = t.AddDate(0, 0, 1)
 	}
 	var err error
+	if d.Total, err = s.st.CountReports(f); err != nil {
+		s.internalError(w, r, "count reports", err)
+		return
+	}
+	d.Pages = max(1, (d.Total+reportsPerPage-1)/reportsPerPage)
+	d.Page, _ = strconv.Atoi(q.Get("page"))
+	d.Page = min(max(d.Page, 1), d.Pages)
+	f.Limit, f.Offset = reportsPerPage, (d.Page-1)*reportsPerPage
 	if d.Rows, err = s.st.ListReports(f); err != nil {
 		s.internalError(w, r, "list reports", err)
 		return
 	}
-	if len(d.Rows) > d.Limit {
-		d.Rows, d.Truncated = d.Rows[:d.Limit], true
+	if len(d.Rows) > 0 {
+		d.First, d.Last = f.Offset+1, f.Offset+len(d.Rows)
 	}
-	if d.Opts, err = s.st.FilterOptions(); err != nil {
-		s.internalError(w, r, "filter options", err)
-		return
+	pageURL := func(n int) string {
+		v := url.Values{}
+		for k, x := range keep {
+			v[k] = x
+		}
+		if n > 1 {
+			v.Set("page", strconv.Itoa(n))
+		}
+		if len(v) == 0 {
+			return "/reports"
+		}
+		return "/reports?" + v.Encode()
+	}
+	d.ReturnPath = pageURL(d.Page)
+	if d.Page > 1 {
+		d.PrevURL = pageURL(d.Page - 1)
+	}
+	if d.Page < d.Pages {
+		d.NextURL = pageURL(d.Page + 1)
+	}
+	// First, last, and two pages either side of the current one.
+	for n, gap := 1, false; n <= d.Pages; n++ {
+		if n == 1 || n == d.Pages || (n >= d.Page-2 && n <= d.Page+2) {
+			d.PageLinks = append(d.PageLinks, pageLink{N: n, URL: pageURL(n), Current: n == d.Page})
+			gap = false
+		} else if !gap {
+			d.PageLinks = append(d.PageLinks, pageLink{Gap: true})
+			gap = true
+		}
 	}
 	if d.Keys, err = s.st.ListUploadKeys(); err != nil {
 		s.internalError(w, r, "list keys", err)
 		return
 	}
 	s.render(w, r, http.StatusOK, "reports.html", "Reports", d)
+}
+
+// handleReportsDelete deletes the selected reports (Admin only) and returns
+// to the list page they were selected on.
+func (s *Server) handleReportsDelete(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	var ids []string
+	for _, id := range r.PostForm["ids"] {
+		if id = strings.ToLower(strings.TrimSpace(id)); reportIDRe.MatchString(id) {
+			ids = append(ids, id)
+		}
+	}
+	back := r.PostFormValue("return")
+	if !strings.HasPrefix(back, "/reports") || strings.HasPrefix(back, "/reports/") {
+		back = "/reports"
+	}
+	if len(ids) == 0 {
+		http.Redirect(w, r, back, http.StatusSeeOther)
+		return
+	}
+	deleted := 0
+	for _, id := range ids {
+		switch err := s.st.DeleteReport(id); {
+		case err == nil:
+			deleted++
+		case errors.Is(err, store.ErrNotFound):
+		default:
+			s.internalError(w, r, "delete report", err)
+			return
+		}
+	}
+	s.log.Printf("%d report(s) deleted by %q: %s", deleted, adminFrom(r).Username, strings.Join(ids, ", "))
+	sep := "?"
+	if strings.Contains(back, "?") {
+		sep = "&"
+	}
+	http.Redirect(w, r, back+sep+"m=deletedsel", http.StatusSeeOther)
 }
 
 var reportIDRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
