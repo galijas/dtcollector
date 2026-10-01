@@ -1,6 +1,8 @@
 package hardware
 
 import (
+	"encoding/json"
+	"os"
 	"testing"
 	"time"
 
@@ -146,5 +148,39 @@ func TestVirtualDevicesSkipped(t *testing.T) {
 	}
 	if names["VMware VMware Virtual Platform"] || names["VMware Virtual Platform"] {
 		t.Error("VM platform kept as a server model")
+	}
+}
+
+// The report import must skip and keep the same storage controllers as the
+// SW Analytics import (testdata lists every controller string it saw).
+func TestControllerRulesMatchSWAnalytics(t *testing.T) {
+	b, err := os.ReadFile("testdata/sw-analytics-controllers.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var d struct{ Skip, Keep []string }
+	if err := json.Unmarshal(b, &d); err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Skip) < 100 || len(d.Keep) < 20 {
+		t.Fatalf("testdata looks incomplete: %d skip, %d keep", len(d.Skip), len(d.Keep))
+	}
+	for _, s := range d.Skip {
+		if !SkipController(s) && !IsVirtual(s) {
+			t.Errorf("should be skipped: %q", s)
+		}
+	}
+	for _, s := range d.Keep {
+		if SkipController(s) || IsVirtual(s) {
+			t.Errorf("should be kept: %q", s)
+		}
+	}
+	// The strings the live upload added.
+	for _, s := range []string{"Intel Corporation C610/X99 series chipset sSATA Controller [AHCI mode]",
+		"Intel Corporation C610/X99 series chipset 6-Port SATA Controller [AHCI mode]", "Avocent Mass Storage Function",
+		"Intel Corporation C620 Series Chipset Family SATA Controller [AHCI mode]"} {
+		if !SkipController(s) {
+			t.Errorf("live string should be skipped: %q", s)
+		}
 	}
 }

@@ -58,8 +58,21 @@ func seedHardware(tx *sql.Tx) error {
 // removeVirtualParts (migration 9) deletes virtual devices that reports added
 // before reports were filtered for them. Manual and seeded entries stay.
 func removeVirtualParts(tx *sql.Tx) error {
-	rows, err := tx.Query(`SELECT id, name, aliases FROM hw_parts WHERE source IN (?, ?)`,
-		hardware.SourceTestScript, hardware.SourceSWHW)
+	return removeReportParts(tx, "", hardware.IsVirtual)
+}
+
+// removeSkippedControllers (migration 10) deletes storage controllers that
+// reports added and the SW Analytics rules leave out (chipset SATA/AHCI,
+// BMC virtual media, USB storage, ...). Manual and seeded entries stay.
+func removeSkippedControllers(tx *sql.Tx) error {
+	return removeReportParts(tx, hardware.CatController, hardware.SkipController)
+}
+
+// removeReportParts deletes report-added parts (of one category, or all when
+// category is empty) whose name or raw names match skip.
+func removeReportParts(tx *sql.Tx, category string, skip func(...string) bool) error {
+	rows, err := tx.Query(`SELECT id, name, aliases FROM hw_parts WHERE source IN (?, ?) AND (? = '' OR category = ?)`,
+		hardware.SourceTestScript, hardware.SourceSWHW, category, category)
 	if err != nil {
 		return err
 	}
@@ -73,7 +86,7 @@ func removeVirtualParts(tx *sql.Tx) error {
 		}
 		var a []string
 		json.Unmarshal([]byte(aliases), &a)
-		if hardware.IsVirtual(append([]string{name}, a...)...) {
+		if skip(append([]string{name}, a...)...) {
 			ids = append(ids, id)
 		}
 	}

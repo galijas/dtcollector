@@ -83,3 +83,32 @@ func TestRemoveVirtualParts(t *testing.T) {
 		t.Errorf("left: %v", left)
 	}
 }
+
+func TestRemoveSkippedControllers(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for _, r := range [][3]string{
+		{"Intel C620 Series Chipset Family SATA Controller [AHCI mode]", "test_script", "k1"},
+		{"Avocent Mass Storage Function", "swhw", "k2"},
+		{"Broadcom / LSI MegaRAID SAS-3 3108 [Invader]", "swhw", "k3"},
+		{"Intel C610 chipset sSATA Controller [AHCI mode] (kept by hand)", "manual", "k4"},
+	} {
+		st.db.Exec(`INSERT INTO hw_parts(category, name, name_key, status, source, created_at, updated_at)
+			VALUES('storage_controller', ?, ?, 'supported', ?, '', '')`, r[0], r[2], r[1])
+	}
+	tx, _ := st.db.Begin()
+	if err := removeSkippedControllers(tx); err != nil {
+		t.Fatal(err)
+	}
+	tx.Commit()
+	var n int
+	st.db.QueryRow(`SELECT COUNT(*) FROM hw_parts WHERE name_key IN ('k1','k2','k3','k4')`).Scan(&n)
+	var kept string
+	st.db.QueryRow(`SELECT group_concat(name_key) FROM (SELECT name_key FROM hw_parts WHERE name_key IN ('k1','k2','k3','k4') ORDER BY name_key)`).Scan(&kept)
+	if kept != "k3,k4" {
+		t.Errorf("kept %q, want k3 (RAID card) and k4 (manual)", kept)
+	}
+}

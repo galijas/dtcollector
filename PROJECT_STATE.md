@@ -87,6 +87,13 @@ Done:
 - Virtual devices are skipped (2026-10-01): any part whose name or raw
   name contains virtual / virtio / qemu / vmware / vbox (`hardware.IsVirtual`).
   Migration 9 removed the ones reports had added (report sources only).
+- Storage controllers from reports follow the SW Analytics rules
+  (2026-10-01, `hardware.SkipController`): only RAID/HBA cards and boot RAID
+  devices are added; chipset SATA/AHCI/IDE/RAID-mode, VMD, BMC virtual
+  media, USB storage, virtual controllers, iSCSI functions, NVMe-over-TCP
+  and NVMe drives listed as controllers are skipped. Checked against every
+  SW Analytics controller string (`internal/hardware/testdata`). Migration
+  10 removed the ones reports had added.
 - Matching is conservative (exact after normalization), so a lspci-style
   name like "Intel Ethernet Controller X550" is added next to the
   datasheet's "Intel X550"; admins merge by deleting one. Smarter matching
