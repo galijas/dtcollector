@@ -19,6 +19,7 @@ type compareReport struct {
 
 type compareCell struct {
 	Text string
+	Info string // explanation behind an (i) button, e.g. why the target wasn't reached
 	Best bool
 }
 
@@ -170,6 +171,9 @@ func buildCompare(reports []compareReport) []compareTest {
 				if m.str != nil {
 					if v, ok := m.str(t); ok && v != "" {
 						row.Cells[i].Text, any = v, true
+						if m.label == "Stop reason" {
+							row.Cells[i].Info = stopInfo(reports[i].R, *t)
+						}
 					}
 					continue
 				}

@@ -24,7 +24,7 @@
   <h2>{{.ID}} <span class="muted">· {{.Title}}</span></h2>
   <div class="table-wrap"><table>
     <thead><tr><th></th>{{range $i, $c := $d.Reports}}<th class="num"><span class="key s{{add $i 1}}"></span>Report {{add $i 1}}</th>{{end}}</tr></thead>
-    <tbody>{{range .Rows}}<tr><th>{{.Label}}</th>{{range .Cells}}<td class="num{{if .Best}} best{{end}}">{{.Text}}</td>{{end}}</tr>{{end}}</tbody>
+    <tbody>{{range .Rows}}<tr><th>{{.Label}}</th>{{range .Cells}}<td class="num{{if .Best}} best{{end}}">{{.Text}}{{with .Info}}{{template "info" .}}{{end}}</td>{{end}}</tr>{{end}}</tbody>
   </table></div>
   <div class="charts"><p class="chart-empty">Loading charts…</p></div>
 </section>

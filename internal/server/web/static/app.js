@@ -8,6 +8,16 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   });
 
+  // (i) buttons show the explanation right after them.
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.info-btn');
+    if (!b) return;
+    var t = b.nextElementSibling;
+    if (!t || !t.classList.contains('info-text')) return;
+    t.hidden = !t.hidden;
+    b.setAttribute('aria-expanded', String(!t.hidden));
+  });
+
   document.addEventListener('click', function (e) {
     var btn = e.target.closest && e.target.closest('[data-copy]');
     if (!btn) return;

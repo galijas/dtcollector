@@ -765,3 +765,28 @@ func TestReportsPagingAndBulkDelete(t *testing.T) {
 		t.Errorf("foreign return path: %q", r.Header.Get("Location"))
 	}
 }
+
+func TestStopInfo(t *testing.T) {
+	r := report.Sample(report.SampleHosts[0], 1, time.Now())
+	q := 237
+	rolling := report.Test{Mode: "rolling", DialRateCPS: 8.5, CallDurationS: 60,
+		Result: report.Result{StopReason: "target_not_reached", MaxConcurrentCalls: 510, Calls: report.Calls{Started: 1845, Answered: 1845}}}
+	if s := stopInfo(r, rolling); !strings.Contains(s, "510 of 512 calls ran at once") || !strings.Contains(s, "at most 510 calls can run at once") {
+		t.Errorf("rolling by design: %q", s)
+	}
+	failing := report.Test{Mode: "rolling", DialRateCPS: 9, CallDurationS: 60,
+		Result: report.Result{StopReason: "target_not_reached", MaxConcurrentCalls: 334, QualityDegradedAtCalls: &q,
+			Calls: report.Calls{Started: 1845, Answered: 1231, Failed: 614}},
+		Timeseries: report.Timeseries{IntervalS: 5, Series: map[string]json.RawMessage{
+			"concurrent_calls": json.RawMessage(`[0,100,250,334]`), "failed_calls": json.RawMessage(`[0,0,3,40]`),
+			"host_cpu_pct": json.RawMessage(`[5,40,97.5,99]`)}}}
+	s := stopInfo(r, failing)
+	for _, w := range []string{"334 of 512", "614 of 1845 calls failed (33%)", "Failures started at 250 concurrent calls", "degraded from 237", "Host CPU peaked at 99%"} {
+		if !strings.Contains(s, w) {
+			t.Errorf("missing %q in %q", w, s)
+		}
+	}
+	if stopInfo(r, report.Test{Result: report.Result{StopReason: "target_reached"}}) != "" {
+		t.Error("only target_not_reached gets an explanation")
+	}
+}

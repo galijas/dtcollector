@@ -89,6 +89,7 @@ var funcs = template.FuncMap{
 		return "warn"
 	},
 	"testTitle": testTitle,
+	"stopInfo":  stopInfo,
 	"add":       func(a, b int) int { return a + b },
 	"deref": func(p any) any {
 		switch v := p.(type) {
@@ -124,6 +125,7 @@ func fmtNum(v float64) string {
 
 var stopLabels = map[string]string{
 	"target_reached":         "Target reached",
+	"target_not_reached":     "Target not reached",
 	"host_cpu_100":           "Host CPU 100%",
 	"host_ram_100":           "Host RAM 100%",
 	"vps_cpu_limit":          "VPS CPU limit",

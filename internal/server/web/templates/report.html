@@ -72,7 +72,7 @@
 <tr>
   <td class="test-name"><a href="#test-{{.ID}}">{{.ID}}</a><div class="hw-sub">{{testTitle .}}</div></td>
   <td class="num">{{$res.MaxConcurrentCalls}}</td>
-  <td><span class="status {{stopClass $res.StopReason}}">{{stop $res.StopReason}}</span></td>
+  <td class="stop-cell"><span class="status {{stopClass $res.StopReason}}">{{stop $res.StopReason}}</span>{{with stopInfo $r .}}{{template "info" .}}{{end}}</td>
   <td class="num">{{pct $res.AtTarget.HostCPUPct}}</td>
   <td class="num">{{pct $res.AtTarget.HostMemPct}}</td>
   <td class="num">{{range $g, $v := $res.AtTarget.AsteriskCPUPct}}<div>{{$g}} {{pct $v}}</div>{{end}}</td>
@@ -93,7 +93,7 @@
 {{range $r.Tests}}
 <section class="test-block" id="test-{{.ID}}" data-test="{{.ID}}">
   <h2>{{.ID}} <span class="muted">· {{testTitle .}}</span></h2>
-  <p class="sub">{{tsStr .StartedAt}} to {{tsStr .FinishedAt}} · {{num .CallDurationS}} s calls · {{num .DialRateCPS}} calls/s · max {{.Result.MaxConcurrentCalls}} calls, <span class="status {{stopClass .Result.StopReason}}">{{stop .Result.StopReason}}</span></p>
+  <p class="sub">{{tsStr .StartedAt}} to {{tsStr .FinishedAt}} · {{num .CallDurationS}} s calls · {{num .DialRateCPS}} calls/s · max {{.Result.MaxConcurrentCalls}} calls, <span class="status {{stopClass .Result.StopReason}}">{{stop .Result.StopReason}}</span>{{with stopInfo $r .}}{{template "info" .}}{{end}}</p>
   <div class="charts"><p class="chart-empty">Loading charts…</p></div>
 </section>
 {{end}}
