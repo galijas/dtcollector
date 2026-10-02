@@ -244,7 +244,31 @@
     return xs;
   }
 
+  // SwarmDialer 1.6.0 and 1.6.1 count queued calls cancelled at the stop as
+  // failed in the first cooldown sample; that spike isn't failures.
+  function versionBelow(v, min) {
+    var a = String(v || '').replace(/^v/, '').split('.'), b = min.split('.');
+    for (var i = 0; i < Math.max(a.length, b.length); i++) {
+      var x = parseInt(a[i] || '0', 10) || 0, y = parseInt(b[i] || '0', 10) || 0;
+      if (x !== y) return x < y;
+    }
+    return false;
+  }
+  function dropCancelledSpike(report) {
+    var v = report.swarmdialer_version;
+    if (report.source || !v || versionBelow(v, '1.6.0') || !versionBelow(v, '1.6.2')) return;
+    (report.tests || []).forEach(function (t) {
+      var stop = (t.result && t.result.events || []).filter(function (e) { return e.code === 'stop'; })[0];
+      var s = t.timeseries && t.timeseries.series && t.timeseries.series.failed_calls;
+      var iv = (t.timeseries && t.timeseries.interval_s) || 5;
+      if (!stop || !Array.isArray(s)) return;
+      var k = Math.floor(stop.t_s / iv) + 1;
+      if (k < s.length) s[k] = null;
+    });
+  }
+
   function renderReport(report) {
+    dropCancelledSpike(report);
     var tests = {};
     (report.tests || []).forEach(function (t) { tests[t.id] = t; });
     reportEl.querySelectorAll('section[data-test]').forEach(function (sec) {

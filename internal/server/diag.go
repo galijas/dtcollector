@@ -49,6 +49,22 @@ func causeLabel(c string) string {
 	return c
 }
 
+// failureText is failurePhrase with the pre-1.6.2 caveat and after-stop note.
+func failureText(r *report.Report, f report.Failure) string {
+	s := failurePhrase(f)
+	if failureUnreliable(r, f) {
+		s += ", " + unreliableNote
+	}
+	if n := afterStop(r, f); n > 0 {
+		if n >= f.Count {
+			s += ", all after the test stopped, from calls still being set up"
+		} else {
+			s += fmt.Sprintf(" (%d of these failed after the test stopped, from calls still being set up)", n)
+		}
+	}
+	return s
+}
+
 // failurePhrase: "37 calls rejected with 503 (Service Unavailable)".
 func failurePhrase(f report.Failure) string {
 	n, were := fmt.Sprintf("%d call", f.Count), "was"
@@ -244,28 +260,64 @@ func attribute(t report.Test) attribution {
 		a.hostBusy = a.hostCPU >= busyHostCPU
 	}
 	res := t.Result
-	// Drops on a quiet host blame SwarmDialer only when the host CPU at the
-	// first drop is known (1.6.1). For 1.6.0 reports only the test's peak is
-	// known, which can't show the host was quiet when the drops began.
+	// Only an overload stop or SwarmDialer's CPU at its limit blame
+	// SwarmDialer. Send drops alone never do: with CPU to spare, its VPS
+	// dropping packets is the host not moving them out in time.
 	a.toolLimited = res.StopReason == "swarmdialer_overloaded" ||
-		(res.Tool != nil && res.Tool.SwarmDialerCPUPeakPct >= toolCPULimit) ||
-		(a.drops && !a.hostBusy && a.hostCPUKnown && pct >= toolLimitDrop)
+		(res.Tool != nil && res.Tool.SwarmDialerCPUPeakPct >= toolCPULimit)
 	a.mediaSuspect = a.drops
 	return a
 }
 
 func (a attribution) dropText() string {
-	if !a.hostBusy && !a.hostCPUKnown {
-		return fmt.Sprintf("SwarmDialer's VPS dropped %s of its outgoing packets (host CPU peaked at %s; this report doesn't record the host's load when the drops began). "+
-			"SwarmDialer's CPU stayed under its limit. This affects the audio figures (MOS, audio received, loss), not the call failures.", pct1(a.dropPct), pct1(a.hostCPU))
+	when := "the report doesn't record the host's load when the drops began"
+	if a.hostCPUKnown {
+		when = "host CPU " + pct1(a.hostCPU) + " when the drops began"
 	}
-	if a.hostBusy {
-		return fmt.Sprintf("SwarmDialer's VPS dropped %s of its outgoing packets while the host was saturated (host CPU %s when the drops began). "+
-			"SwarmDialer runs on the tested host, so a saturated host also delays its network. "+
-			"This affects the audio figures (MOS, audio received, loss), not the call failures.", pct1(a.dropPct), pct1(a.hostCPU))
+	tail := "SwarmDialer runs on the tested host and had CPU to spare, so the host didn't move its packets out in time. "
+	if a.toolLimited {
+		tail = "SwarmDialer runs on the tested host. "
 	}
-	return fmt.Sprintf("SwarmDialer's VPS dropped %s of its outgoing packets while the host was not busy (host CPU %s), so SwarmDialer's network limited the result. "+
-		"The audio figures (MOS, audio received, loss) are unreliable.", pct1(a.dropPct), pct1(a.hostCPU))
+	return fmt.Sprintf("SwarmDialer's VPS dropped %s of its outgoing packets (%s). %s"+
+		"This affects the audio figures (MOS, audio received, loss), not the call failures.", pct1(a.dropPct), when, tail)
+}
+
+// Reports before SwarmDialer 1.6.2 misclassified call timeouts: a call
+// PBXware didn't answer within 15 s was often reported as rejected with 401
+// (a late auth challenge) or 487 (the answer to SwarmDialer's own CANCEL),
+// a cause first seen at 0 calls appeared only after the test stopped, and
+// failed_calls has a false spike at the first cooldown sample.
+const failureFixVersion = "1.6.2"
+
+func legacyFailures(r *report.Report) bool {
+	return r.Source == nil && r.HasDiagnostics() && !report.VersionAtLeast(r.SwarmDialerVersion, failureFixVersion)
+}
+
+// failureUnreliable: a cause the pre-1.6.2 classification can't be trusted for.
+func failureUnreliable(r *report.Report, f report.Failure) bool {
+	return legacyFailures(r) && f.Cause == "rejected" && (f.SIPCode == 401 || f.SIPCode == 487)
+}
+
+const unreliableNote = "probably not answered within 15 s (classification unreliable before SwarmDialer 1.6.2)"
+
+// failureFirstAt is when the cause first appeared while calls were placed;
+// ok is false when it only appeared after the test stopped.
+func failureFirstAt(r *report.Report, f report.Failure) (calls int, ok bool) {
+	if f.FirstAtCalls == nil || (legacyFailures(r) && *f.FirstAtCalls == 0) || (f.AfterStop > 0 && f.AfterStop >= f.Count) {
+		return 0, false
+	}
+	return *f.FirstAtCalls, true
+}
+
+// afterStop is how many of a cause's failures came after the test stopped.
+func afterStop(r *report.Report, f report.Failure) int {
+	if f.AfterStop > 0 {
+		return f.AfterStop
+	}
+	if legacyFailures(r) && f.FirstAtCalls != nil && *f.FirstAtCalls == 0 {
+		return f.Count
+	}
+	return 0
 }
 
 func round1(v float64) float64 { return math.Round(v*10) / 10 }
@@ -346,16 +398,12 @@ func pbxwareNotes(res report.Result) []string {
 
 // diagInfo explains how a diagnostics test ended, in the spec's order:
 // tool, the stop, failures, PBXware's view, quality.
-func diagInfo(t report.Test) string {
+func diagInfo(r *report.Report, t report.Test) string {
 	res := t.Result
 	var out []string
 	a := attribute(t)
 	if a.toolLimited {
-		s := "The result is limited by SwarmDialer, the load generator, not by the host."
-		if a.drops && !a.hostBusy {
-			s += fmt.Sprintf(" Its VPS dropped %s of its outgoing packets while the host was not busy.", pct1(a.dropPct))
-		}
-		out = append(out, s)
+		out = append(out, "The result is limited by SwarmDialer, the load generator, not by the host.")
 	}
 	if res.StopDetail != "" {
 		s := "Stopped: " + res.StopDetail + "."
@@ -369,10 +417,10 @@ func diagInfo(t report.Test) string {
 		first := -1
 		for i, f := range res.Failures {
 			if i < 3 {
-				parts = append(parts, failurePhrase(f))
+				parts = append(parts, failureText(r, f))
 			}
-			if f.FirstAtCalls != nil && (first < 0 || *f.FirstAtCalls < first) {
-				first = *f.FirstAtCalls
+			if c, ok := failureFirstAt(r, f); ok && (first < 0 || c < first) {
+				first = c
 			}
 		}
 		s := ""
@@ -458,7 +506,32 @@ func eventText(e report.Event) string {
 // has them, otherwise the one derived from the older report data.
 func testInfo(r *report.Report, t report.Test) string {
 	if r.HasDiagnostics() {
-		return diagInfo(t)
+		return diagInfo(r, t)
 	}
 	return stopInfo(r, t)
+}
+
+// diagCtx is what the "diagnostics" template gets: the report and one test.
+type diagCtx struct {
+	R *report.Report
+	T report.Test
+}
+
+// mainFailure is compare's "Main failure cause" cell and its (i) note.
+func mainFailure(r *report.Report, f report.Failure) (text, info string) {
+	text = causeLabel(f.Cause)
+	if f.SIPCode > 0 {
+		text += " " + sipText(f.SIPCode)
+	}
+	if c, ok := failureFirstAt(r, f); ok {
+		text += fmt.Sprintf(", from %d calls", c)
+	} else {
+		text += ", after the stop"
+	}
+	text += fmt.Sprintf(" (%d)", f.Count)
+	if failureUnreliable(r, f) {
+		text += "*"
+		info = "Probably not answered within 15 s: SwarmDialer before 1.6.2 misclassified call timeouts as 401 or 487."
+	}
+	return text, info
 }

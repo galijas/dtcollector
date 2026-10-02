@@ -95,7 +95,7 @@
 <section class="test-block" id="test-{{.ID}}" data-test="{{.ID}}">
   <h2>{{.ID}} <span class="muted">· {{testTitle .}}</span></h2>
   <p class="sub">{{tsStr .StartedAt}} to {{tsStr .FinishedAt}} · {{num .CallDurationS}} s calls · {{num .DialRateCPS}} calls/s · max {{.Result.MaxConcurrentCalls}} calls, {{$stop := effStop $r .}}<span class="status {{stopClass $stop}}">{{stop $stop}}</span>{{if not $diag}}{{with testInfo $r .}}{{template "info" .}}{{end}}{{end}}</p>
-  {{if $diag}}{{template "diagnostics" .}}{{end}}
+  {{if $diag}}{{template "diagnostics" (dt $r .)}}{{end}}
   <div class="charts"><p class="chart-empty">Loading charts…</p></div>
 </section>
 {{end}}
@@ -103,9 +103,9 @@
 {{end}}
 {{end}}
 
-{{define "diagnostics"}}{{$t := .}}{{$res := .Result}}
+{{define "diagnostics"}}{{$rep := .R}}{{$t := .T}}{{$res := .T.Result}}
 <div class="diag">
-  {{with diagInfo .}}<p class="diag-summary">{{.}}</p>{{end}}
+  {{with diagInfo $rep $t}}<p class="diag-summary">{{.}}</p>{{end}}
   <div class="env-grid">
     {{with atStopRows $res.AtStop}}
     <div class="card">
@@ -124,8 +124,8 @@
         <td><span title="{{causeHelp .Cause}}">{{causeLabel .Cause}}</span></td>
         <td>{{if .SIPCode}}{{sipText .SIPCode}}{{else}}<span class="muted">–</span>{{end}}</td>
         <td class="num">{{.Count}}</td>
-        <td class="num">{{with .FirstAtCalls}}{{deref .}} calls{{end}}{{with .FirstAtS}} · {{clock (deref .)}}{{end}}</td>
-      </tr>{{end}}
+        <td class="num">{{firstAt $rep .}}</td>
+      </tr>{{with failNote $rep .}}<tr class="fail-note"><td colspan="4">{{.}}</td></tr>{{end}}{{end}}
       </tbody></table>
       <p class="hw-sub">"Dropped" and "No audio" calls were answered, so they also count as answered.</p>
       {{else}}<p class="muted">No calls failed.</p>{{end}}
@@ -134,7 +134,7 @@
     <div class="card">
       <h3>PBXware's view</h3>
       <table><thead><tr><th>Instance</th><th class="num">Active calls peak</th><th>CDR statuses</th></tr></thead><tbody>
-      {{range $role, $peak := .ActiveCallsPeak}}<tr><td>{{$role}}</td><td class="num">{{num $peak}}</td><td>{{range $st, $n := index $.Result.PBXware.CDRStatus $role}}<div>{{$st}}: {{$n}}</div>{{else}}<span class="muted">–</span>{{end}}</td></tr>{{end}}
+      {{range $role, $peak := .ActiveCallsPeak}}<tr><td>{{$role}}</td><td class="num">{{num $peak}}</td><td>{{range $st, $n := index $res.PBXware.CDRStatus $role}}<div>{{$st}}: {{$n}}</div>{{else}}<span class="muted">–</span>{{end}}</td></tr>{{end}}
       </tbody></table>
       <p class="hw-sub">SwarmDialer: {{$res.MaxConcurrentCalls}} calls at once, {{$res.Calls.Answered}} answered.</p>
       {{range pbxwareNotes $res}}<p class="warn-line">{{.}}</p>{{end}}
@@ -162,7 +162,7 @@
     <div class="card">
       <h3>Recordings</h3>
       <table><thead><tr><th>Instance</th><th class="num">MP3 delay avg / p95 / max</th><th class="num">Recordings</th><th>Trend</th><th class="num">Missing</th></tr></thead><tbody>
-      {{range $role, $d := .MP3ByInstance}}<tr><td>{{$role}}</td><td class="num">{{num $d.Avg}} / {{num $d.P95}} / {{num $d.Max}} s</td><td class="num">{{$d.N}}</td><td>{{$d.Trend}}</td><td class="num">{{index $.Result.Recording.MissingRecordings $role}}</td></tr>{{end}}
+      {{range $role, $d := .MP3ByInstance}}<tr><td>{{$role}}</td><td class="num">{{num $d.Avg}} / {{num $d.P95}} / {{num $d.Max}} s</td><td class="num">{{$d.N}}</td><td>{{$d.Trend}}</td><td class="num">{{index $res.Recording.MissingRecordings $role}}</td></tr>{{end}}
       </tbody></table>
       <p class="hw-sub">Missing: calls long enough to be recorded whose MP3 never appeared.</p>
     </div>

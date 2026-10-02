@@ -189,6 +189,7 @@ type Failure struct {
 	Count        int    `json:"count"`
 	FirstAtCalls *int   `json:"first_at_calls,omitempty"`
 	FirstAtS     *int   `json:"first_at_s,omitempty"`
+	AfterStop    int    `json:"after_stop,omitempty"` // 1.6.2: of Count, failed after the test stopped
 }
 
 // PBXwareView is the calls as PBXware itself saw them.

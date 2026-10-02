@@ -88,10 +88,31 @@ var funcs = template.FuncMap{
 		}
 		return "warn"
 	},
-	"testTitle":    testTitle,
-	"stopInfo":     stopInfo,
-	"testInfo":     testInfo,
-	"diagInfo":     diagInfo,
+	"testTitle": testTitle,
+	"stopInfo":  stopInfo,
+	"testInfo":  testInfo,
+	"diagInfo":  diagInfo,
+	"dt":        func(r *report.Report, t report.Test) diagCtx { return diagCtx{r, t} },
+	"failNote": func(r *report.Report, f report.Failure) string {
+		var n []string
+		if failureUnreliable(r, f) {
+			n = append(n, "Probably not answered within 15 s: SwarmDialer before 1.6.2 misclassified timeouts as "+sipText(f.SIPCode)+".")
+		}
+		if a := afterStop(r, f); a > 0 {
+			n = append(n, fmt.Sprintf("%d failed after the test stopped, from calls still being set up.", a))
+		}
+		return strings.Join(n, " ")
+	},
+	"firstAt": func(r *report.Report, f report.Failure) string {
+		if c, ok := failureFirstAt(r, f); ok {
+			s := fmt.Sprintf("%d calls", c)
+			if f.FirstAtS != nil {
+				s += " · " + fmtClock(*f.FirstAtS)
+			}
+			return s
+		}
+		return "after the stop"
+	},
 	"atStopRows":   atStopRows,
 	"toolWarnings": toolWarnings,
 	"toolLimited":  func(t report.Test) bool { return attribute(t).toolLimited },

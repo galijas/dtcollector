@@ -61,6 +61,7 @@ func compareMetrics(reports []compareReport) []metric {
 			}
 			f := t.Result.Failures[0]
 			s := causeLabel(f.Cause)
+
 			if f.SIPCode > 0 {
 				s += " " + sipText(f.SIPCode)
 			}
@@ -188,6 +189,9 @@ func buildCompare(reports []compareReport) []compareTest {
 				if m.str != nil {
 					if v, ok := m.str(t); ok && v != "" {
 						row.Cells[i].Text, any = v, true
+						if m.label == "Main failure cause" {
+							row.Cells[i].Text, row.Cells[i].Info = mainFailure(reports[i].R, t.Result.Failures[0])
+						}
 						if m.label == "Stop reason" {
 							row.Cells[i].Text = stopLabel(effectiveStop(reports[i].R, *t))
 							row.Cells[i].Info = testInfo(reports[i].R, *t)

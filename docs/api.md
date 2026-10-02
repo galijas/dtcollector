@@ -196,6 +196,9 @@ version 1: `result.stop_detail`, `result.quality_degraded_reason`,
 `timeseries.series.pbxware_active_calls` (`{"MT": [...], "CC": [...]}`).
 SwarmDialer 1.6.1 adds `result.tool.udp_send_drop_pct`, the
 `udp_send_drops` event and `timeseries.series.swarmdialer_udp_send_drops`.
+SwarmDialer 1.6.2 adds `result.failures[].after_stop` (how many of the
+cause's calls failed after the test stopped) and leaves out
+`first_at_calls` / `first_at_s` when a cause only appeared after the stop.
 Their full description is in `~/claude/SwarmDialer_report_diagnostics.md`.
 The server stores them as uploaded and checks only that each
 `failures[]` entry has a cause and a non-negative count (at most 100

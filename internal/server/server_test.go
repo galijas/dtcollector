@@ -842,6 +842,12 @@ func TestDiagnosticsReports(t *testing.T) {
 	}
 }
 
+var (
+	rep160 = &report.Report{SwarmDialerVersion: "1.6.0"}
+	rep161 = &report.Report{SwarmDialerVersion: "1.6.1"}
+	rep162 = &report.Report{SwarmDialerVersion: "1.6.2"}
+)
+
 func TestDiagInfo(t *testing.T) {
 	c430, s95 := 430, 95
 	q := 264
@@ -853,7 +859,7 @@ func TestDiagInfo(t *testing.T) {
 		Failures: []report.Failure{{Cause: "rejected", SIPCode: 503, Count: 37, FirstAtCalls: &c430, FirstAtS: &s95}},
 		PBXware:  &report.PBXwareView{ActiveCallsPeak: map[string]float64{"MT": 440}},
 		Tool:     &report.ToolHealth{SwarmDialerCPUPeakPct: 85}}}
-	s := diagInfo(tst)
+	s := diagInfo(rep161, tst)
 	for _, w := range []string{"limited by SwarmDialer", "Stopped: MT VPS CPU 390% of its 4-core limit.", "host CPU 61%", "CC VPS CPU 61% of its limit",
 		"Failures began at 430 calls: 37 calls rejected with 503 (Service Unavailable).", "PBXware counted at most 440 active calls on MT, SwarmDialer 480: call legs were lost.",
 		"Call quality degraded from 264 calls (p95 call setup 649 ms)."} {
@@ -861,7 +867,7 @@ func TestDiagInfo(t *testing.T) {
 			t.Errorf("missing %q in %q", w, s)
 		}
 	}
-	if diagInfo(report.Test{Result: report.Result{StopReason: "target_reached"}}) != "" {
+	if diagInfo(rep161, report.Test{Result: report.Result{StopReason: "target_reached"}}) != "" {
 		t.Error("a clean target_reached test has nothing to explain")
 	}
 }
@@ -884,11 +890,11 @@ func TestAttribution(t *testing.T) {
 	// Test 2: drops on a busy host (1.6.0, no percentage: estimated).
 	t2 := mk(3876583, nil, `[5,40,80,92.9,90,60,5]`, 38.5, 3, nil)
 	a := attribute(t2)
-	if a.toolLimited || !a.drops || !a.hostBusy || !a.mediaSuspect || a.dropPct < 10 || a.dropPct > 35 {
+	if a.toolLimited || !a.drops || !a.mediaSuspect || a.dropPct < 10 || a.dropPct > 35 {
 		t.Errorf("test 2: %+v", a)
 	}
-	s := diagInfo(t2)
-	if strings.Contains(s, "limited by SwarmDialer") || !strings.Contains(s, "while the host was saturated (host CPU 92.9% when the drops began)") ||
+	s := diagInfo(rep160, t2)
+	if strings.Contains(s, "limited by SwarmDialer") || !strings.Contains(s, "(the report doesn't record the host's load when the drops began)") ||
 		!strings.Contains(s, "not the call failures") {
 		t.Errorf("test 2 text: %q", s)
 	}
@@ -896,7 +902,7 @@ func TestAttribution(t *testing.T) {
 	c341 := 341
 	t7 := mk(0, nil, `[5,50,88,87,80,40,5]`, 33.5, 772, nil)
 	t7.Result.Failures = []report.Failure{{Cause: "rejected", SIPCode: 603, Count: 500, FirstAtCalls: &c341}, {Cause: "no_answer", Count: 272}}
-	s = diagInfo(t7)
+	s = diagInfo(rep160, t7)
 	if strings.Contains(s, "SwarmDialer") || !strings.HasPrefix(s, "Failures began at 341 calls: 500 calls rejected with 603 (Decline)") {
 		t.Errorf("test 7 text: %q", s)
 	}
@@ -909,8 +915,9 @@ func TestAttribution(t *testing.T) {
 	}
 	// Drops on a quiet host (1.6.1: percentage and event).
 	quiet := mk(90000, f(2.4), `[5,40,90,90]`, 30, 0, []report.Event{{Code: "udp_send_drops", Count: 900, Metric: "host_cpu", Value: f(40)}})
-	s = diagInfo(quiet)
-	if !attribute(quiet).toolLimited || !strings.Contains(s, "limited by SwarmDialer") || !strings.Contains(s, "dropped 2.4% of its outgoing packets while the host was not busy") {
+	s = diagInfo(rep161, quiet)
+	if attribute(quiet).toolLimited || strings.Contains(s, "limited by SwarmDialer") ||
+		!strings.Contains(s, "dropped 2.4% of its outgoing packets (host CPU 40% when the drops began). SwarmDialer runs on the tested host and had CPU to spare") {
 		t.Errorf("quiet-host drops: %q", s)
 	}
 	// 1.6.0 drops on a host that peaked under 80% (test 5): no event, so no blame.
@@ -918,7 +925,7 @@ func TestAttribution(t *testing.T) {
 	if a := attribute(t5); a.toolLimited || !a.mediaSuspect {
 		t.Errorf("test 5: %+v", a)
 	}
-	if s := diagInfo(t5); strings.Contains(s, "limited by SwarmDialer") || !strings.Contains(s, "doesn't record the host's load when the drops began") {
+	if s := diagInfo(rep160, t5); strings.Contains(s, "limited by SwarmDialer") || !strings.Contains(s, "doesn't record the host's load when the drops began") {
 		t.Errorf("test 5 text: %q", s)
 	}
 	// Tiny drops: information only, figures not flagged.
@@ -928,5 +935,34 @@ func TestAttribution(t *testing.T) {
 	}
 	if w := toolWarnings(tiny); len(w) != 1 || !strings.Contains(w[0], "doesn't affect the figures") {
 		t.Errorf("tiny drops warning: %v", w)
+	}
+}
+
+// SwarmDialer before 1.6.2 misclassified call timeouts (attribution fix file).
+func TestLegacyFailureClassification(t *testing.T) {
+	zero, c430 := 0, 430
+	tst := report.Test{Result: report.Result{StopReason: "target_not_reached", MaxConcurrentCalls: 341,
+		Calls: report.Calls{Started: 2000, Failed: 360},
+		Failures: []report.Failure{{Cause: "rejected", SIPCode: 401, Count: 337, FirstAtCalls: &c430},
+			{Cause: "rejected", SIPCode: 603, Count: 20, FirstAtCalls: &c430},
+			{Cause: "no_answer", Count: 3, FirstAtCalls: &zero}}}}
+	s := diagInfo(rep161, tst)
+	if !strings.Contains(s, "337 calls rejected with 401 (Unauthorized), probably not answered within 15 s (classification unreliable before SwarmDialer 1.6.2)") {
+		t.Errorf("1.6.1 caveat: %q", s)
+	}
+	if strings.Contains(s, "603 (Decline), probably") {
+		t.Error("603 is reliable")
+	}
+	if !strings.Contains(s, "Failures began at 430 calls") || !strings.Contains(s, "3 calls were not answered, all after the test stopped") {
+		t.Errorf("1.6.1 first_at 0 means after the stop: %q", s)
+	}
+	if s := diagInfo(rep162, tst); strings.Contains(s, "unreliable") {
+		t.Errorf("1.6.2 has no caveat: %q", s)
+	}
+	// 1.6.2: after_stop equal to count and no first_at_calls.
+	late := report.Test{Result: report.Result{StopReason: "target_reached",
+		Failures: []report.Failure{{Cause: "no_response", Count: 4, AfterStop: 4}}}}
+	if s := diagInfo(rep162, late); strings.Contains(s, "Failures began at") || !strings.Contains(s, "4 calls got no response, all after the test stopped") {
+		t.Errorf("after_stop: %q", s)
 	}
 }
