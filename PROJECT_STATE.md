@@ -141,7 +141,8 @@ Done:
   At stop / Failures / PBXware's view / SwarmDialer health / Recordings
   cards, a collapsible timeline, and PBXware's active calls on the
   concurrent-calls chart. Compare adds "Stop detail" and "Main failure
-  cause" rows (shown only when some report has them).
+  cause" rows (shown only when some report has them). Compare refuses to
+  mix diagnostics and older reports (server check + list hint).
 - `dtc-sample -diag` generates a 1.6-style report (synthetic numbers).
 
 ## Open items

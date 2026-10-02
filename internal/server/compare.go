@@ -274,6 +274,16 @@ func (s *Server) handleCompare(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Diagnostics reports (SwarmDialer 1.6.0+) and older ones have different
+	// overviews and rolling-test MOS isn't comparable, so they aren't mixed.
+	diag0 := d.Reports[0].R.HasDiagnostics()
+	for _, cr := range d.Reports[1:] {
+		if cr.R.HasDiagnostics() != diag0 {
+			s.errorPage(w, r, http.StatusBadRequest, "Diagnostics reports (SwarmDialer 1.6.0 and later) can't be compared with older reports. "+
+				"Select reports of one kind: all with the Diagnostics badge, or all without it.")
+			return
+		}
+	}
 	p0 := d.Reports[0].Meta
 	for _, cr := range d.Reports[1:] {
 		if cr.Meta.ProfileName != p0.ProfileName || cr.Meta.ProfileVersion != p0.ProfileVersion {

@@ -819,9 +819,18 @@ func TestDiagnosticsReports(t *testing.T) {
 	if !strings.Contains(op, "Standard report") || strings.Contains(op, "At stop") || strings.Contains(op, "Timeline (") {
 		t.Error("old report page must stay as it was")
 	}
-	_, cp := e.get(e.client, "/compare?ids="+old.ReportID+","+nr.ReportID)
-	if !strings.Contains(cp, "Stop detail") || !strings.Contains(cp, "Main failure cause") {
-		t.Error("compare rows for diagnostics")
+	if resp, body := e.get(e.client, "/compare?ids="+old.ReportID+","+nr.ReportID); resp.StatusCode != 400 || !strings.Contains(body, "can&#39;t be compared with older reports") {
+		t.Errorf("mixed compare: %d", resp.StatusCode)
+	}
+	nr2 := report.SampleDiagnostics(report.SampleHosts[0], 302, time.Now())
+	nb2, _ := json.Marshal(nr2)
+	e.upload(e.key, nb2, false)
+	resp, cp := e.get(e.client, "/compare?ids="+nr2.ReportID+","+nr.ReportID)
+	if resp.StatusCode != 200 || !strings.Contains(cp, "Stop detail") || !strings.Contains(cp, "Main failure cause") {
+		t.Errorf("diagnostics compare: %d", resp.StatusCode)
+	}
+	if !strings.Contains(list, `data-diag="true"`) || !strings.Contains(list, `data-diag="false"`) {
+		t.Error("list checkboxes must carry the report format")
 	}
 }
 

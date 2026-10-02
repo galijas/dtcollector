@@ -40,7 +40,7 @@
 <tbody>
 {{range $d.Rows}}
 <tr>
-  <td class="select-col"><input type="checkbox" name="ids" value="{{.ID}}" data-profile="{{.Profile}}" data-kind="{{.Kind}}" aria-label="Select report {{.ID}}"></td>
+  <td class="select-col"><input type="checkbox" name="ids" value="{{.ID}}" data-profile="{{.Profile}}" data-kind="{{.Kind}}" data-diag="{{.HasDiagnostics}}" aria-label="Select report {{.ID}}"></td>
   <td>{{if .KeyName}}{{.KeyName}}{{else}}<span class="muted">deleted key</span>{{end}}<div class="hw-sub">{{.SourceLabel}}{{if .HasDiagnostics}} <span class="chip diag" title="Includes diagnostics: stop details, failure causes, PBXware's view, tool health and a timeline">Diagnostics</span>{{end}}</div></td>
   <td class="nowrap"><a href="/reports/{{.ID}}">{{localTime .CreatedAt}}</a></td>
   <td>

@@ -40,13 +40,15 @@
     var boxes = function () { return compareForm.querySelectorAll('input[name=ids]'); };
     var sync = function () {
       var checked = compareForm.querySelectorAll('input[name=ids]:checked');
-      var profiles = {}, hardware = false;
+      var profiles = {}, hardware = false, formats = {};
       checked.forEach(function (c) {
         profiles[c.getAttribute('data-profile')] = true;
+        formats[c.getAttribute('data-diag')] = true;
         if (c.getAttribute('data-kind') === 'hardware') hardware = true;
       });
       var nProfiles = Object.keys(profiles).length;
-      var ok = checked.length >= 2 && checked.length <= 8 && nProfiles === 1 && !hardware;
+      var mixed = Object.keys(formats).length > 1;
+      var ok = checked.length >= 2 && checked.length <= 8 && nProfiles === 1 && !hardware && !mixed;
       btn.disabled = !ok;
       if (del) {
         del.disabled = checked.length === 0;
@@ -57,7 +59,8 @@
         all.checked = n > 0 && checked.length === n;
         all.indeterminate = checked.length > 0 && checked.length < n;
       }
-      if (hardware && checked.length > 1) hint.textContent = 'Hardware-only reports have no test results to compare; select benchmark reports.';
+      if (mixed && !hardware) hint.textContent = 'Diagnostics reports can\'t be compared with older reports; select only one kind.';
+      else if (hardware && checked.length > 1) hint.textContent = 'Hardware-only reports have no test results to compare; select benchmark reports.';
       else if (nProfiles > 1) hint.textContent = 'The selection mixes profile versions (' + Object.keys(profiles).join(', ') + '); compare within one.';
       else if (checked.length > 8) hint.textContent = 'Select at most 8 reports to compare.';
       else if (checked.length) hint.textContent = checked.length + ' selected.';
