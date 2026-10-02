@@ -3,31 +3,54 @@
 DT Collector is the central server for SERVERware host reports. When a
 SwarmDialer instance finishes its standardized load test against a
 SERVERware host, it uploads a benchmark report here. SwarmDialer and the
-hardware collection script can also upload hardware-only reports (the
-host's hardware inventory, no tests). Admins browse the reports, look at
-each test's results and time series, and compare hosts side by side.
+hardware collection script (SWHW Collector) can also upload hardware-only
+reports (the host's hardware inventory, no tests). Users browse the
+reports, look at each test's results and time series, compare hosts side
+by side, and keep a list of validated hardware.
 
 - **Upload API** (`/api/v1`): used by SwarmDialer and the hardware
   collection script, authenticated with API (upload) keys. A key can only
   upload; it can't read, list or delete anything, and it can't log in to
-  the web interface. See
-  [docs/api.md](docs/api.md) for the contract.
-- **HW Validation** (the first tab): a list of hardware parts (server
-  models, CPUs, NICs, drives, storage controllers) marked Supported,
-  Unsupported or Not validated. It is seeded on first install with the
-  starter list `internal/hardware/seed/hardware-list.json` (the Supported
-  Hardware datasheet and SW Analytics, as edited by the admins), extended
-  by hand, and extended automatically by every uploaded report:
-  parts a report describes that aren't listed yet are added as Supported,
-  linked to that report.
+  the web interface. See [docs/api.md](docs/api.md) for the contract.
+- **HW Validation** (the first tab): hardware parts (server models, CPUs,
+  NICs, drives, storage controllers) marked Supported, Unsupported or Not
+  validated, with instant search (dashes and spaces ignored, so "E5 2699"
+  finds "E5-2699"), Type / Source / Status filters, and manual add, edit
+  and delete.
+  - Sources: Supported Hardware Datasheet and SW Analytics (the starter
+    list `internal/hardware/seed/hardware-list.json`, imported on first
+    install), Manual input (hover shows who entered it), and Test Script
+    and SWHW data (parts found in uploaded reports, linked to the report).
+  - Every uploaded report adds the parts that aren't listed yet, as
+    Supported. Virtual devices (names with virtual, virtio, QEMU, VMware,
+    VBox) are skipped, and storage controllers follow the SW Analytics
+    rules: only RAID/HBA cards and boot RAID devices are added (no chipset
+    SATA/AHCI, BMC virtual media, USB storage or NVMe drives).
+  - **Export PDF** downloads the list as shown (search and filters
+    applied). **HowTo: Upload SWHW data** opens the steps for running the
+    SWHW Collector script.
+- **Reports**: 20 per page with a pager, filters for type (benchmark or
+  hardware only), source (API key), date range and text search, a
+  select-all checkbox, **Compare selected** (2 to 8 benchmark reports) and
+  **Delete selected** (Admin only). Times are shown as DD/MM/YYYY in
+  Central European time (CEST/CET).
+  - Report pages show the host inventory, a results table, and charts per
+    test. A clickable (i) next to the stop reason explains how the test
+    ended.
+  - **Diagnostics reports** (SwarmDialer 1.6.0 and later, marked
+    "Diagnostics") also show, per test: a summary of why it ended, the
+    load at stop against each limit, failures by cause and SIP code,
+    PBXware's own counts, SwarmDialer's health, recordings per instance,
+    an event timeline, and PBXware's active calls on the concurrent-calls
+    chart. Older reports are shown as before.
+  - Compare works within one report kind only: diagnostics reports with
+    diagnostics reports, older reports with older reports.
 - **Account types**: Admin accounts manage accounts (create, reset
   passwords, change type, delete) and can delete hardware entries and
   reports; User accounts can use everything else and change their own
   password. The server enforces this; the last Admin can't be deleted or
-  demoted.
-- **Web interface**: local admin accounts (bcrypt-hashed passwords). Admins
-  browse and compare reports and manage API keys and admin accounts. A
-  light/dark theme toggle (remembered per browser) sits in the header.
+  demoted. Passwords are stored as bcrypt hashes.
+- A light/dark theme toggle (remembered per browser) sits in the header.
 
 It is a single Go binary with the web interface embedded, SQLite for
 storage, and a Let's Encrypt certificate obtained and renewed by the binary
@@ -57,8 +80,9 @@ The install script:
 2. installs Go if missing and builds `/usr/local/bin/dtcollector`,
 3. creates the unprivileged system user `dtcollector` and the data
    directory `/var/lib/dtcollector`,
-4. on first install, creates the first admin account and prints its
-   password once,
+4. on first install, creates the first Admin account and prints its
+   password once (the database starts with the HW Validation starter
+   list),
 5. installs and starts the `dtcollector` systemd service (running as
    `dtcollector`, with systemd sandboxing; it may bind ports 80 and 443
    through `CAP_NET_BIND_SERVICE` only),
@@ -90,8 +114,8 @@ service.
 | Logs (uploads, logins, errors) | `journalctl -u dtcollector -f` |
 | Back up now | `sudo systemctl start dtcollector-backup` |
 | List backups | `sudo ls -l /var/lib/dtcollector/backups` |
-| Reset an admin's password | `sudo runuser -u dtcollector -- dtcollector reset-password -data-dir /var/lib/dtcollector -username <name>` |
-| Create an admin from the shell | `sudo runuser -u dtcollector -- dtcollector create-admin -data-dir /var/lib/dtcollector -username <name>` |
+| Reset an account's password | `sudo runuser -u dtcollector -- dtcollector reset-password -data-dir /var/lib/dtcollector -username <name>` |
+| Create an Admin account from the shell | `sudo runuser -u dtcollector -- dtcollector create-admin -data-dir /var/lib/dtcollector -username <name>` |
 | Change DNS name or email | `sudo ./install.sh` and enter the new values |
 | Export the HW Validation list (new starter list) | `sudo runuser -u dtcollector -- dtcollector export-hardware -data-dir /var/lib/dtcollector -out /tmp/hardware-list.json` |
 
@@ -119,7 +143,7 @@ sudo systemctl start dtcollector
 |---|---|
 | `/usr/local/bin/dtcollector` | The binary |
 | `/etc/dtcollector/dtcollector.env` | DNS name and Let's Encrypt email |
-| `/var/lib/dtcollector/dtcollector.db` | Database: reports, admins, sessions, hashed API keys |
+| `/var/lib/dtcollector/dtcollector.db` | Database: reports, the HW Validation list, accounts, sessions, hashed API keys |
 | `/var/lib/dtcollector/autocert/` | Let's Encrypt account key and certificates |
 | `/var/lib/dtcollector/backups/` | Daily database backups |
 | `/etc/systemd/system/dtcollector*.{service,timer}` | Service and backup units |
@@ -128,7 +152,7 @@ sudo systemctl start dtcollector
 
 - HTTPS only, with a Let's Encrypt certificate renewed automatically;
   HTTP only redirects. HSTS is set.
-- Admin passwords are bcrypt hashes (cost 12). Failed logins are limited
+- Account passwords are bcrypt hashes (cost 12). Failed logins are limited
   to 10 per 15 minutes per client address. Sessions last 12 hours, use
   `__Host-` cookies (`Secure`, `HttpOnly`, `SameSite=Strict`) and end when
   the password changes. Cross-origin form posts are rejected.
@@ -160,15 +184,17 @@ go run ./cmd/dtc-sample -host 1 -upload http://127.0.0.1:8080 -key dtk_...
 go run ./cmd/dtc-sample -host 2 > example-report.json   # print instead
 go run ./cmd/dtc-sample -hardware -upload http://127.0.0.1:8080 -key dtk_...   # SwarmDialer hardware-only report
 go run ./cmd/dtc-sample -script -upload http://127.0.0.1:8080 -key dtk_...     # hardware collection script report
+go run ./cmd/dtc-sample -diag -upload http://127.0.0.1:8080 -key dtk_...       # SwarmDialer 1.6 report with diagnostics
 ```
 
 Layout:
 
 | Path | Contents |
 |---|---|
-| `cmd/dtcollector` | Server and admin CLI (`serve`, `create-admin`, `reset-password`, `backup`) |
+| `cmd/dtcollector` | Server and admin CLI (`serve`, `create-admin`, `reset-password`, `backup`, `export-hardware`) |
 | `cmd/dtc-sample` | Synthetic report generator and uploader |
-| `internal/report` | Report format v1, validation, summaries, sample generator |
+| `internal/report` | Report format v1 (including the 1.6 diagnostics fields), validation, summaries, sample generators |
+| `internal/hardware` | HW Validation: categories, name matching, extraction from reports and its filters, the starter list (`seed/`) |
 | `internal/store` | SQLite schema and queries |
 | `internal/auth` | Password hashing, API keys, session tokens |
-| `internal/server` | Upload API, admin sessions, web pages; `web/` holds templates and static files (uPlot for charts) |
+| `internal/server` | Upload API, sessions and account types, web pages, PDF export, report explanations (`stopinfo.go`, `diag.go`); `web/` holds templates and static files (uPlot for charts) |
