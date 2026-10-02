@@ -174,3 +174,19 @@ func TestHardwareValidation(t *testing.T) {
 		t.Fatalf("target_not_reached: %v", err)
 	}
 }
+
+func TestVersionAtLeast(t *testing.T) {
+	for _, c := range []struct {
+		v, min string
+		want   bool
+	}{{"1.6.0", "1.6.0", true}, {"1.10.0", "1.6.0", true}, {"1.5.9", "1.6.0", false}, {"2.0", "1.6.0", true}, {"v1.6.1", "1.6.0", true}, {"", "1.6.0", false}} {
+		if VersionAtLeast(c.v, c.min) != c.want {
+			t.Errorf("%q >= %q: want %v", c.v, c.min, c.want)
+		}
+	}
+	b, _ := json.Marshal(SampleDiagnostics(SampleHosts[0], 3, time.Now()))
+	r, err := Parse(b)
+	if err != nil || !r.HasDiagnostics() || r.Tests[0].Result.AtStop == nil {
+		t.Fatalf("diagnostics sample: %v", err)
+	}
+}

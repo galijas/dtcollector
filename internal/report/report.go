@@ -150,6 +150,90 @@ type Result struct {
 	QualityDegradedAtCalls *int             `json:"quality_degraded_at_calls"`
 	AtTarget               AtTarget         `json:"at_target"`
 	Recording              *RecordingResult `json:"recording,omitempty"`
+
+	// Diagnostics, added within v1 by SwarmDialer 1.6.0 (all optional; see
+	// ~/claude/SwarmDialer_report_diagnostics.md).
+	StopDetail            string       `json:"stop_detail,omitempty"`
+	QualityDegradedReason string       `json:"quality_degraded_reason,omitempty"`
+	AtStop                *AtStop      `json:"at_stop,omitempty"`
+	Failures              []Failure    `json:"failures,omitempty"`
+	PBXware               *PBXwareView `json:"pbxware,omitempty"`
+	Tool                  *ToolHealth  `json:"tool,omitempty"`
+	Events                []Event      `json:"events,omitempty"`
+}
+
+// AtStop is the load in the 5-second sample that ended the test.
+type AtStop struct {
+	Calls             int                  `json:"calls"`
+	HostCPUPct        float64              `json:"host_cpu_pct"`
+	HostMemPct        float64              `json:"host_mem_pct"`
+	HostIOWaitPct     float64              `json:"host_iowait_pct"`
+	SwarmDialerCPUPct float64              `json:"swarmdialer_cpu_pct"`
+	RAMDiskEstPct     *float64             `json:"ramdisk_est_pct,omitempty"`
+	VPS               map[string]VPSAtStop `json:"vps,omitempty"`
+}
+
+type VPSAtStop struct {
+	CPUPctOfLimit      *float64 `json:"cpu_pct_of_limit,omitempty"`
+	CPUPctOfHost       float64  `json:"cpu_pct_of_host"`
+	MemPctOfLimit      *float64 `json:"mem_pct_of_limit,omitempty"`
+	MemBytes           float64  `json:"mem_bytes"`
+	AsteriskCPUPct     float64  `json:"asterisk_cpu_pct"`
+	PBXwareActiveCalls *float64 `json:"pbxware_active_calls,omitempty"`
+}
+
+// Failure is failed calls grouped by cause (largest count first).
+type Failure struct {
+	Cause        string `json:"cause"`
+	SIPCode      int    `json:"sip_code,omitempty"`
+	Count        int    `json:"count"`
+	FirstAtCalls *int   `json:"first_at_calls,omitempty"`
+	FirstAtS     *int   `json:"first_at_s,omitempty"`
+}
+
+// PBXwareView is the calls as PBXware itself saw them.
+type PBXwareView struct {
+	CDRStatus       map[string]map[string]int `json:"cdr_status,omitempty"`
+	ActiveCallsPeak map[string]float64        `json:"active_calls_peak,omitempty"`
+}
+
+// ToolHealth says whether SwarmDialer, the load generator, held up.
+type ToolHealth struct {
+	SwarmDialerCPUPeakPct  float64                 `json:"swarmdialer_cpu_peak_pct"`
+	UDPSendErrors          uint64                  `json:"udp_send_errors"`
+	UDPReceiveErrors       uint64                  `json:"udp_receive_errors"`
+	Extensions             int                     `json:"extensions"`
+	NotRegisteredAtStart   int                     `json:"not_registered_at_start"`
+	NotRegisteredAtEnd     int                     `json:"not_registered_at_end"`
+	ReregistrationFailures uint64                  `json:"reregistration_failures"`
+	MediaReceived          map[string]MediaQuality `json:"media_received,omitempty"`
+}
+
+type MediaQuality struct {
+	Calls       uint64  `json:"calls"`
+	LossPct     float64 `json:"loss_pct"`
+	JitterMSAvg float64 `json:"jitter_ms_avg"`
+	JitterMSMax float64 `json:"jitter_ms_max"`
+}
+
+// Event is one entry of a test's timeline.
+type Event struct {
+	TS      int      `json:"t_s"`
+	Code    string   `json:"code"`
+	Calls   int      `json:"calls"`
+	Role    string   `json:"role,omitempty"`
+	Metric  string   `json:"metric,omitempty"`
+	Value   *float64 `json:"value,omitempty"`
+	Cause   string   `json:"cause,omitempty"`
+	SIPCode int      `json:"sip_code,omitempty"`
+	Reason  string   `json:"reason,omitempty"`
+	Count   int      `json:"count,omitempty"`
+}
+
+// HasDiagnostics reports whether the test carries SwarmDialer 1.6 diagnostics.
+func (r *Result) HasDiagnostics() bool {
+	return r.StopDetail != "" || r.QualityDegradedReason != "" || r.AtStop != nil || len(r.Failures) > 0 ||
+		r.PBXware != nil || r.Tool != nil || len(r.Events) > 0
 }
 
 type Calls struct {
@@ -167,6 +251,7 @@ type Stats struct {
 type MOS struct {
 	Avg float64 `json:"avg"`
 	Min float64 `json:"min"`
+	N   int     `json:"n,omitempty"` // calls the MOS covers (diagnostics reports)
 }
 
 type AtTarget struct {
@@ -179,6 +264,18 @@ type RecordingResult struct {
 	RamdiskFullEstimatedAtCalls *int      `json:"ramdisk_full_estimated_at_calls"`
 	RamdiskFullEstimatedAt      *string   `json:"ramdisk_full_estimated_at"`
 	MP3ConversionDelayS         *MP3Delay `json:"mp3_conversion_delay_s"`
+
+	// Per instance (MT, CC), diagnostics reports only.
+	MP3ByInstance     map[string]MP3DelayN `json:"mp3_conversion_delay_s_by_instance,omitempty"`
+	MissingRecordings map[string]int       `json:"missing_recordings,omitempty"`
+}
+
+type MP3DelayN struct {
+	Avg   float64 `json:"avg"`
+	P95   float64 `json:"p95"`
+	Max   float64 `json:"max"`
+	N     int     `json:"n"`
+	Trend string  `json:"trend"`
 }
 
 type MP3Delay struct {
@@ -209,7 +306,7 @@ var (
 	swEditions  = []string{"standalone", "mirror", "cluster"}
 	trends      = []string{"stable", "growing"}
 	stopReasons = []string{"target_reached", "target_not_reached", "host_cpu_100", "host_ram_100", "vps_cpu_limit",
-		"vps_ram_limit", "swarmdialer_overloaded", "error"}
+		"vps_ram_limit", "swarmdialer_overloaded", "cancelled", "error"}
 )
 
 // ValidationError names the offending field; its message is returned to the
@@ -317,6 +414,58 @@ func (r *Report) Validate() error {
 
 func (r *Report) IsHardware() bool { return r.Profile.Name == HardwareProfile }
 
+// DiagnosticsVersion is the first SwarmDialer version that sends diagnostics.
+const DiagnosticsVersion = "1.6.0"
+
+// HasDiagnostics reports whether a benchmark report uses the diagnostics
+// format: sent by SwarmDialer 1.6.0 or later, or carrying its fields.
+func (r *Report) HasDiagnostics() bool {
+	if r.IsHardware() {
+		return false
+	}
+	if r.Source == nil && VersionAtLeast(r.SwarmDialerVersion, DiagnosticsVersion) {
+		return true
+	}
+	for i := range r.Tests {
+		if r.Tests[i].Result.HasDiagnostics() {
+			return true
+		}
+	}
+	return false
+}
+
+// VersionAtLeast compares dotted numeric versions ("1.10.0" >= "1.6.0").
+func VersionAtLeast(v, min string) bool {
+	parse := func(s string) []int {
+		var out []int
+		for _, p := range strings.Split(strings.TrimPrefix(strings.TrimSpace(s), "v"), ".") {
+			n := 0
+			for _, c := range p {
+				if c < '0' || c > '9' {
+					break
+				}
+				n = n*10 + int(c-'0')
+			}
+			out = append(out, n)
+		}
+		return out
+	}
+	a, b := parse(v), parse(min)
+	for i := 0; i < len(a) || i < len(b); i++ {
+		x, y := 0, 0
+		if i < len(a) {
+			x = a[i]
+		}
+		if i < len(b) {
+			y = b[i]
+		}
+		if x != y {
+			return x > y
+		}
+	}
+	return true
+}
+
 // SourceName and SourceVersion identify the uploading tool.
 func (r *Report) SourceName() string {
 	if r.Source != nil {
@@ -391,6 +540,14 @@ func (t *Test) validate(path string) error {
 	res := t.Result
 	if !oneOf(res.StopReason, stopReasons) {
 		return fail(path+".result.stop_reason", "must be one of %s", strings.Join(stopReasons, ", "))
+	}
+	if len(res.Events) > 1000 || len(res.Failures) > 100 {
+		return fail(path+".result", "too many events or failure groups")
+	}
+	for i, f := range res.Failures {
+		if f.Count < 0 || strings.TrimSpace(f.Cause) == "" {
+			return fail(fmt.Sprintf("%s.result.failures[%d]", path, i), "needs a cause and a count of 0 or more")
+		}
 	}
 	if res.MaxConcurrentCalls < 0 {
 		return fail(path+".result.max_concurrent_calls", "must not be negative")

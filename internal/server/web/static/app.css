@@ -202,6 +202,23 @@ table.kv tbody tr:hover td { background: none; }
   background: var(--panel-alt); border: 1px solid var(--border); border-left: 2px solid var(--link); border-radius: var(--radius);
 }
 .info-text[hidden] { display: none; }
+.chip.diag { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); font-family: var(--sans); }
+.diag { margin: 10px 0 16px; display: flex; flex-direction: column; gap: 12px; }
+.diag-summary {
+  margin: 0; padding: 10px 12px; max-width: 72rem; line-height: 1.5;
+  background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--link); border-radius: var(--radius);
+}
+.diag .card h3 { margin-top: 0; }
+.diag .env-grid { align-items: start; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); }
+.diag table { margin-top: 6px; }
+tr.near-limit th, tr.near-limit td { color: var(--danger); font-weight: 600; }
+.warn-line { margin: 8px 0 0; color: var(--accent); }
+.warn-line::before { content: "▲ "; }
+.ok-line { margin: 8px 0 0; color: var(--ok); }
+.ok-line::before { content: "● "; }
+details.timeline > summary { cursor: pointer; font-family: var(--mono); font-weight: 600; padding: 4px 0; }
+details.timeline .table-wrap { margin-top: 6px; }
+tr.ev-stop td, tr.ev-failures_started td { font-weight: 600; }
 td .info-text { min-width: 20rem; }
 td.stop-cell { white-space: nowrap; }
 td.stop-cell .info-text { white-space: normal; }

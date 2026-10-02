@@ -226,7 +226,7 @@ done:
 		MaxConcurrentCalls: maxCalls,
 		Calls:              Calls{int(started) + failedTotal, int(started), failedTotal},
 		SetupMS:            Stats{round2(avg), round2(p95), round2(mx)},
-		MOS:                MOS{round2(4.4 - 0.3*math.Pow(atCPU/100, 4)), round2(4.1 - 0.9*math.Pow(atCPU/100, 4))},
+		MOS:                MOS{round2(4.4 - 0.3*math.Pow(atCPU/100, 4)), round2(4.1 - 0.9*math.Pow(atCPU/100, 4)), 0},
 		RTPReceivedRatio:   ptr(round4(0.9995 - 0.02*math.Pow(atCPU/100, 6))),
 		AtTarget:           AtTarget{atCPU, atMem, atAst},
 	}
@@ -311,6 +311,113 @@ func SampleHardware(h SampleHost, seed uint64, created time.Time, script bool) *
 		r.Source = &Source{"hw-collect", "1.0.0"}
 		r.Environment.VPS = map[string]VPSLimits{}
 		r.Environment.PBXware = []PBXware{}
+	}
+	return r
+}
+
+// SampleDiagnostics is a Sample as SwarmDialer 1.6.0 sends it, with the
+// diagnostics fields filled in from the synthetic run.
+func SampleDiagnostics(h SampleHost, seed uint64, created time.Time) *Report {
+	r := Sample(h, seed, created)
+	r.SwarmDialerVersion = "1.6.0"
+	for i := range r.Tests {
+		t := &r.Tests[i]
+		res := &t.Result
+		var conc, cpu, failed []*float64
+		json.Unmarshal(t.Timeseries.Series["concurrent_calls"], &conc)
+		json.Unmarshal(t.Timeseries.Series["host_cpu_pct"], &cpu)
+		json.Unmarshal(t.Timeseries.Series["failed_calls"], &failed)
+		at := func(k int) float64 {
+			if k < len(conc) && conc[k] != nil {
+				return *conc[k]
+			}
+			return 0
+		}
+		stopIdx := 0
+		for k := range conc {
+			if conc[k] != nil && int(*conc[k]) == res.MaxConcurrentCalls {
+				stopIdx = k
+				break
+			}
+		}
+		pct := func(v float64) *float64 { return &v }
+		hostCPU := 0.0
+		if stopIdx < len(cpu) && cpu[stopIdx] != nil {
+			hostCPU = *cpu[stopIdx]
+		}
+		res.AtStop = &AtStop{Calls: res.MaxConcurrentCalls, HostCPUPct: hostCPU, HostMemPct: res.AtTarget.HostMemPct,
+			HostIOWaitPct: 1.2, SwarmDialerCPUPct: 22,
+			VPS: map[string]VPSAtStop{
+				"MT": {CPUPctOfLimit: pct(hostCPU * 0.9), CPUPctOfHost: hostCPU * 0.5, MemPctOfLimit: pct(31), MemBytes: 2.6e9,
+					AsteriskCPUPct: res.AtTarget.AsteriskCPUPct["MT"], PBXwareActiveCalls: pct(float64(res.MaxConcurrentCalls))},
+				"CC": {CPUPctOfLimit: pct(hostCPU * 0.7), CPUPctOfHost: hostCPU * 0.4, MemPctOfLimit: pct(28), MemBytes: 2.3e9,
+					AsteriskCPUPct: res.AtTarget.AsteriskCPUPct["CC"], PBXwareActiveCalls: pct(float64(res.MaxConcurrentCalls))},
+			}}
+		if t.Recording != "off" {
+			res.AtStop.RAMDiskEstPct = pct(64)
+		}
+		res.MOS.N = 199
+		switch res.StopReason {
+		case "host_cpu_100":
+			res.StopDetail = fmt.Sprintf("host CPU %.1f%%", hostCPU)
+		case "target_not_reached":
+			res.StopDetail = fmt.Sprintf("%d of 510 calls ran at once at the highest rate", res.MaxConcurrentCalls)
+		}
+		firstFail := -1
+		for k, f := range failed {
+			if f != nil && *f > 0 {
+				firstFail = k
+				break
+			}
+		}
+		if res.Calls.Failed > 0 && firstFail >= 0 {
+			c, s := int(at(firstFail)), firstFail*int(t.Timeseries.IntervalS)
+			rej := res.Calls.Failed * 3 / 4
+			res.Failures = []Failure{{Cause: "rejected", SIPCode: 503, Count: rej, FirstAtCalls: &c, FirstAtS: &s}}
+			if res.Calls.Failed-rej > 0 {
+				c2, s2 := c+12, s+20
+				res.Failures = append(res.Failures, Failure{Cause: "no_answer", Count: res.Calls.Failed - rej, FirstAtCalls: &c2, FirstAtS: &s2})
+			}
+			res.QualityDegradedReason = fmt.Sprintf("%d of %d new calls failed", res.Calls.Failed, res.Calls.Started)
+			res.Events = append(res.Events, Event{TS: s, Code: "failures_started", Calls: c, Cause: "rejected", SIPCode: 503})
+		}
+		if res.QualityDegradedAtCalls != nil && res.QualityDegradedReason == "" {
+			res.QualityDegradedReason = "p95 call setup 649 ms"
+		}
+		peak := float64(res.MaxConcurrentCalls)
+		res.PBXware = &PBXwareView{
+			ActiveCallsPeak: map[string]float64{"MT": peak, "CC": peak - 2},
+			CDRStatus: map[string]map[string]int{
+				"MT": {"Answered": res.Calls.Answered, "Failed": res.Calls.Failed},
+				"CC": {"Answered": res.Calls.Answered}},
+		}
+		res.Tool = &ToolHealth{SwarmDialerCPUPeakPct: 31, Extensions: 1024,
+			MediaReceived: map[string]MediaQuality{
+				"MT": {Calls: uint64(res.Calls.Answered), LossPct: 0.2, JitterMSAvg: 1.1, JitterMSMax: 7.4},
+				"CC": {Calls: uint64(res.Calls.Answered), LossPct: 0.1, JitterMSAvg: 0.9, JitterMSMax: 6.0}}}
+		v80 := 80.0
+		res.Events = append([]Event{{TS: 60 + stopIdx*2, Code: "threshold_near", Calls: int(at(stopIdx / 2)), Metric: "host_cpu", Value: &v80}}, res.Events...)
+		if res.QualityDegradedAtCalls != nil {
+			v := 1.6
+			res.Events = append(res.Events, Event{TS: stopIdx * 5, Code: "quality_degraded", Calls: *res.QualityDegradedAtCalls, Metric: "failed_pct", Value: &v})
+		}
+		res.Events = append(res.Events, Event{TS: stopIdx * 5, Code: "stop", Calls: res.MaxConcurrentCalls, Reason: res.StopReason})
+		if rec := res.Recording; rec != nil && rec.MP3ConversionDelayS != nil {
+			d := rec.MP3ConversionDelayS
+			rec.MP3ByInstance = map[string]MP3DelayN{
+				"MT": {d.Avg * 0.8, d.P95 * 0.8, d.Max * 0.8, 1200, "stable"},
+				"CC": {d.Avg, d.P95, d.Max, 1180, d.Trend}}
+			rec.MissingRecordings = map[string]int{"MT": 0, "CC": 3}
+		}
+		pb := make([]*float64, len(conc))
+		for k, v := range conc {
+			if v != nil {
+				x := *v * 0.99
+				pb[k] = &x
+			}
+		}
+		b, _ := json.Marshal(map[string][]*float64{"MT": pb, "CC": pb})
+		t.Timeseries.Series["pbxware_active_calls"] = b
 	}
 	return r
 }

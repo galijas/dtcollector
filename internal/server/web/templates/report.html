@@ -1,9 +1,9 @@
 {{define "content"}}
-{{$m := .Data.Meta}}{{$r := .Data.R}}{{$h := $r.Environment.Host}}
+{{$m := .Data.Meta}}{{$r := .Data.R}}{{$h := $r.Environment.Host}}{{$diag := $r.HasDiagnostics}}
 <div class="spread">
   <div>
     <h1>{{if $h.CPUModel}}{{$h.CPUModel}}{{else}}Unknown CPU{{end}}</h1>
-    <p class="sub">{{if $m.IsHardware}}<span class="chip hw">Hardware only</span> {{end}}{{with $m.System}}{{.}} · {{end}}Report created {{ts $m.CreatedAt}} · received {{ts $m.ReceivedAt}} · from {{if $m.KeyName}}<strong>{{$m.KeyName}}</strong>{{else}}a deleted key{{end}} · {{$m.SourceLabel}} · profile {{$m.Profile}}</p>
+    <p class="sub">{{if $diag}}<span class="chip diag" title="Sent by SwarmDialer {{$r.SwarmDialerVersion}}: includes stop details, failure causes, PBXware's view, tool health and a timeline per test">Diagnostics report</span> {{else if not $m.IsHardware}}<span class="chip" title="Sent before SwarmDialer 1.6.0: no diagnostics fields">Standard report</span> {{end}}{{if $m.IsHardware}}<span class="chip hw">Hardware only</span> {{end}}{{with $m.System}}{{.}} · {{end}}Report created {{ts $m.CreatedAt}} · received {{ts $m.ReceivedAt}} · from {{if $m.KeyName}}<strong>{{$m.KeyName}}</strong>{{else}}a deleted key{{end}} · {{$m.SourceLabel}} · profile {{$m.Profile}}</p>
   </div>
   <div class="row">
     <a class="button" href="/reports/{{$m.ID}}/json?download=1">Download JSON</a>
@@ -72,7 +72,7 @@
 <tr>
   <td class="test-name"><a href="#test-{{.ID}}">{{.ID}}</a><div class="hw-sub">{{testTitle .}}</div></td>
   <td class="num">{{$res.MaxConcurrentCalls}}</td>
-  <td class="stop-cell"><span class="status {{stopClass $res.StopReason}}">{{stop $res.StopReason}}</span>{{with stopInfo $r .}}{{template "info" .}}{{end}}</td>
+  <td class="stop-cell"><span class="status {{stopClass $res.StopReason}}">{{stop $res.StopReason}}</span>{{with testInfo $r .}}{{template "info" .}}{{end}}</td>
   <td class="num">{{pct $res.AtTarget.HostCPUPct}}</td>
   <td class="num">{{pct $res.AtTarget.HostMemPct}}</td>
   <td class="num">{{range $g, $v := $res.AtTarget.AsteriskCPUPct}}<div>{{$g}} {{pct $v}}</div>{{end}}</td>
@@ -84,7 +84,7 @@
     {{with .RamdiskFullEstimatedAtCalls}}<div>RAM disk full at ~{{deref .}} calls (est.)</div>{{end}}
     {{with .MP3ConversionDelayS}}<div>MP3 delay avg {{num .Avg}} s, p95 {{num .P95}} s, max {{num .Max}} s, {{.Trend}}</div>{{end}}
   {{else}}<span class="muted">–</span>{{end}}
-  {{with $res.QualityDegradedAtCalls}}<div>Quality degraded at {{deref .}} calls</div>{{end}}</td>
+  {{with $res.QualityDegradedAtCalls}}<div>Quality degraded at {{deref .}} calls{{with $res.QualityDegradedReason}}: {{.}}{{end}}</div>{{end}}</td>
 </tr>
 {{end}}
 </tbody></table></div>
@@ -93,10 +93,87 @@
 {{range $r.Tests}}
 <section class="test-block" id="test-{{.ID}}" data-test="{{.ID}}">
   <h2>{{.ID}} <span class="muted">· {{testTitle .}}</span></h2>
-  <p class="sub">{{tsStr .StartedAt}} to {{tsStr .FinishedAt}} · {{num .CallDurationS}} s calls · {{num .DialRateCPS}} calls/s · max {{.Result.MaxConcurrentCalls}} calls, <span class="status {{stopClass .Result.StopReason}}">{{stop .Result.StopReason}}</span>{{with stopInfo $r .}}{{template "info" .}}{{end}}</p>
+  <p class="sub">{{tsStr .StartedAt}} to {{tsStr .FinishedAt}} · {{num .CallDurationS}} s calls · {{num .DialRateCPS}} calls/s · max {{.Result.MaxConcurrentCalls}} calls, <span class="status {{stopClass .Result.StopReason}}">{{stop .Result.StopReason}}</span>{{if not $diag}}{{with testInfo $r .}}{{template "info" .}}{{end}}{{end}}</p>
+  {{if $diag}}{{template "diagnostics" .}}{{end}}
   <div class="charts"><p class="chart-empty">Loading charts…</p></div>
 </section>
 {{end}}
 </div>
 {{end}}
+{{end}}
+
+{{define "diagnostics"}}{{$res := .Result}}
+<div class="diag">
+  {{with diagInfo .}}<p class="diag-summary">{{.}}</p>{{end}}
+  <div class="env-grid">
+    {{with atStopRows $res.AtStop}}
+    <div class="card">
+      <h3>At stop</h3>
+      <p class="hw-sub">The load in the 5-second sample that ended the test. Values within 5 points of their stop limit are marked.</p>
+      <table class="kv"><thead><tr><th>Metric</th><th class="num">Value</th><th class="num">Stop limit</th></tr></thead><tbody>
+      {{range .}}<tr{{if .Near}} class="near-limit"{{end}}><th>{{.Label}}</th><td class="num">{{.Value}}</td><td class="num muted">{{or .Limit "–"}}</td></tr>{{end}}
+      </tbody></table>
+    </div>
+    {{end}}
+    <div class="card">
+      <h3>Failures</h3>
+      {{if $res.Failures}}
+      <table><thead><tr><th>Cause</th><th>SIP response</th><th class="num">Calls</th><th class="num">First at</th></tr></thead><tbody>
+      {{range $res.Failures}}<tr>
+        <td><span title="{{causeHelp .Cause}}">{{causeLabel .Cause}}</span></td>
+        <td>{{if .SIPCode}}{{sipText .SIPCode}}{{else}}<span class="muted">–</span>{{end}}</td>
+        <td class="num">{{.Count}}</td>
+        <td class="num">{{with .FirstAtCalls}}{{deref .}} calls{{end}}{{with .FirstAtS}} · {{clock (deref .)}}{{end}}</td>
+      </tr>{{end}}
+      </tbody></table>
+      <p class="hw-sub">"Dropped" and "No audio" calls were answered, so they also count as answered.</p>
+      {{else}}<p class="muted">No calls failed.</p>{{end}}
+    </div>
+    {{with $res.PBXware}}
+    <div class="card">
+      <h3>PBXware's view</h3>
+      <table><thead><tr><th>Instance</th><th class="num">Active calls peak</th><th>CDR statuses</th></tr></thead><tbody>
+      {{range $role, $peak := .ActiveCallsPeak}}<tr><td>{{$role}}</td><td class="num">{{num $peak}}</td><td>{{range $st, $n := index $.Result.PBXware.CDRStatus $role}}<div>{{$st}}: {{$n}}</div>{{else}}<span class="muted">–</span>{{end}}</td></tr>{{end}}
+      </tbody></table>
+      <p class="hw-sub">SwarmDialer: {{$res.MaxConcurrentCalls}} calls at once, {{$res.Calls.Answered}} answered.</p>
+      {{range pbxwareNotes $res}}<p class="warn-line">{{.}}</p>{{end}}
+    </div>
+    {{end}}
+    {{with $res.Tool}}
+    <div class="card">
+      <h3>SwarmDialer health</h3>
+      <table class="kv"><tbody>
+        <tr><th>CPU peak</th><td>{{pct .SwarmDialerCPUPeakPct}} <span class="muted">(limit 80%)</span></td></tr>
+        <tr><th>UDP send / receive errors</th><td>{{.UDPSendErrors}} / {{.UDPReceiveErrors}}</td></tr>
+        <tr><th>Extensions</th><td>{{.Extensions}}; not registered at start {{.NotRegisteredAtStart}}, at end {{.NotRegisteredAtEnd}}</td></tr>
+        <tr><th>Re-registration failures</th><td>{{.ReregistrationFailures}}</td></tr>
+      </tbody></table>
+      {{with .MediaReceived}}
+      <table><thead><tr><th>Audio from</th><th class="num">Calls</th><th class="num">Loss</th><th class="num">Jitter avg / max</th></tr></thead><tbody>
+      {{range $role, $m := .}}<tr><td>{{$role}}</td><td class="num">{{$m.Calls}}</td><td class="num">{{pct $m.LossPct}}</td><td class="num">{{num $m.JitterMSAvg}} / {{num $m.JitterMSMax}} ms</td></tr>{{end}}
+      </tbody></table>
+      {{end}}
+      {{range toolWarnings .}}<p class="warn-line">{{.}}</p>{{else}}<p class="ok-line">SwarmDialer held up during this test.</p>{{end}}
+    </div>
+    {{end}}
+    {{with $res.Recording}}{{if or .MP3ByInstance .MissingRecordings}}
+    <div class="card">
+      <h3>Recordings</h3>
+      <table><thead><tr><th>Instance</th><th class="num">MP3 delay avg / p95 / max</th><th class="num">Recordings</th><th>Trend</th><th class="num">Missing</th></tr></thead><tbody>
+      {{range $role, $d := .MP3ByInstance}}<tr><td>{{$role}}</td><td class="num">{{num $d.Avg}} / {{num $d.P95}} / {{num $d.Max}} s</td><td class="num">{{$d.N}}</td><td>{{$d.Trend}}</td><td class="num">{{index $.Result.Recording.MissingRecordings $role}}</td></tr>{{end}}
+      </tbody></table>
+      <p class="hw-sub">Missing: calls long enough to be recorded whose MP3 never appeared.</p>
+    </div>
+    {{end}}{{end}}
+  </div>
+  {{with $res.Events}}
+  <details class="timeline">
+    <summary>Timeline ({{len .}} events)</summary>
+    <div class="table-wrap"><table><thead><tr><th class="num">Time</th><th class="num">Calls</th><th>Event</th></tr></thead><tbody>
+    {{range .}}<tr class="ev-{{.Code}}"><td class="num">{{clock .TS}}</td><td class="num">{{.Calls}}</td><td>{{eventText .}}</td></tr>{{end}}
+    </tbody></table></div>
+  </details>
+  {{end}}
+  {{if $res.MOS.N}}<p class="hw-sub">MOS from {{$res.MOS.N}} sampled calls.</p>{{end}}
+</div>
 {{end}}

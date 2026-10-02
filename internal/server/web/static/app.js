@@ -122,7 +122,8 @@
 
   // Chart definitions for one report: each has one unit (one y axis).
   var REPORT_CHARTS = [
-    { title: 'Concurrent calls', unit: 'calls', lines: [['concurrent_calls', null, 'Calls']] },
+    { title: 'Concurrent calls', unit: 'calls', lines: [['concurrent_calls', null, 'SwarmDialer'],
+      ['pbxware_active_calls', 'MT', 'PBXware MT'], ['pbxware_active_calls', 'CC', 'PBXware CC']] },
     { title: 'Host CPU', unit: 'pct', max100: true, lines: [['host_cpu_pct', null, 'CPU'], ['host_iowait_pct', null, 'I/O wait']] },
     { title: 'Host memory', unit: 'pct', max100: true, lines: [['host_mem_pct', null, 'Memory']] },
     { title: 'Asterisk CPU', unit: 'pct', groups: 'asterisk_cpu_pct' },

@@ -511,6 +511,12 @@ func (r ReportRow) Profile() string { return fmt.Sprintf("%s v%d", r.ProfileName
 
 func (r ReportRow) IsHardware() bool { return r.Kind == "hardware" }
 
+// HasDiagnostics: benchmark reports from SwarmDialer 1.6.0 or later carry
+// diagnostics fields.
+func (r ReportRow) HasDiagnostics() bool {
+	return r.Kind == "benchmark" && r.SourceName == "swarmdialer" && report.VersionAtLeast(r.SourceVersion, report.DiagnosticsVersion)
+}
+
 // SourceLabel names the uploading tool: "SwarmDialer 1.4.0", "hw-collect 1.0.0".
 func (r ReportRow) SourceLabel() string {
 	name := r.SourceName

@@ -185,6 +185,25 @@ filtering and comparing. Anything else is stored as uploaded.
 - Unknown fields are accepted and kept, so SwarmDialer can add optional
   fields within version 1. A breaking change needs `schema_version: 2`.
 
+### Diagnostics fields (SwarmDialer 1.6.0 and later)
+
+SwarmDialer 1.6.0 adds optional fields to each test, still within format
+version 1: `result.stop_detail`, `result.quality_degraded_reason`,
+`result.mos.n`, `result.at_stop`, `result.failures[]`, `result.pbxware`,
+`result.tool`, `result.events[]`,
+`result.recording.mp3_conversion_delay_s_by_instance`,
+`result.recording.missing_recordings` and
+`timeseries.series.pbxware_active_calls` (`{"MT": [...], "CC": [...]}`).
+Their full description is in `~/claude/SwarmDialer_report_diagnostics.md`.
+The server stores them as uploaded and checks only that each
+`failures[]` entry has a cause and a non-negative count (at most 100
+groups and 1000 events per test). `stop_reason` may also be `cancelled`.
+
+DT Collector treats a benchmark report as a diagnostics report when it
+comes from SwarmDialer 1.6.0 or later or carries any of these fields; the
+interface marks it "Diagnostics" and shows the extra sections. Older
+reports are shown as before.
+
 ### Meaning of the time series
 
 Sample `i` of every series is at `start + i * interval_s`. The web

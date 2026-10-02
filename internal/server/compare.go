@@ -54,6 +54,21 @@ func compareMetrics(reports []compareReport) []metric {
 	ms := []metric{
 		{label: "Max concurrent calls", num: func(t *report.Test) (float64, bool) { return some(float64(t.Result.MaxConcurrentCalls)) }, format: fmtNum, better: 1},
 		{label: "Stop reason", str: func(t *report.Test) (string, bool) { return stopLabel(t.Result.StopReason), true }},
+		{label: "Stop detail", str: func(t *report.Test) (string, bool) { return t.Result.StopDetail, t.Result.StopDetail != "" }},
+		{label: "Main failure cause", str: func(t *report.Test) (string, bool) {
+			if len(t.Result.Failures) == 0 {
+				return "", false
+			}
+			f := t.Result.Failures[0]
+			s := causeLabel(f.Cause)
+			if f.SIPCode > 0 {
+				s += " " + sipText(f.SIPCode)
+			}
+			if f.FirstAtCalls != nil {
+				s += fmt.Sprintf(", from %d calls", *f.FirstAtCalls)
+			}
+			return fmt.Sprintf("%s (%d)", s, f.Count), true
+		}},
 		{label: "Host CPU at target", num: func(t *report.Test) (float64, bool) { return some(t.Result.AtTarget.HostCPUPct) }, format: fmtPct, better: -1},
 		{label: "Host RAM at target", num: func(t *report.Test) (float64, bool) { return some(t.Result.AtTarget.HostMemPct) }, format: fmtPct, better: -1},
 	}
@@ -172,7 +187,7 @@ func buildCompare(reports []compareReport) []compareTest {
 					if v, ok := m.str(t); ok && v != "" {
 						row.Cells[i].Text, any = v, true
 						if m.label == "Stop reason" {
-							row.Cells[i].Info = stopInfo(reports[i].R, *t)
+							row.Cells[i].Info = testInfo(reports[i].R, *t)
 						}
 					}
 					continue

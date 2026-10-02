@@ -128,6 +128,22 @@ Done:
 - The last Admin can't be deleted or changed to User; nobody can change
   their own type. `dtcollector create-admin` creates Admin accounts.
 
+## Diagnostics reports (2026-10-02)
+
+- SwarmDialer 1.6.0 adds per-test diagnostics within format v1 (spec:
+  `~/claude/SwarmDialer_report_diagnostics.md`). `report.Report.HasDiagnostics`
+  (version >= 1.6.0 or any field present) decides; `store.ReportRow.HasDiagnostics`
+  does the same for the list from the version column (no migration).
+- Old reports render exactly as before (the derived `stopInfo` explanation
+  for target_not_reached). Diagnostics reports: "Diagnostics" badge (list,
+  report header), and per test a summary (`diagInfo`, the spec's order:
+  tool, stop + headroom, failures, PBXware's view, quality, tool warnings),
+  At stop / Failures / PBXware's view / SwarmDialer health / Recordings
+  cards, a collapsible timeline, and PBXware's active calls on the
+  concurrent-calls chart. Compare adds "Stop detail" and "Main failure
+  cause" rows (shown only when some report has them).
+- `dtc-sample -diag` generates a 1.6-style report (synthetic numbers).
+
 ## Open items
 
 - Units of `host_net_*_bps` (assumed bits/s) and `host_disk_*_bps`

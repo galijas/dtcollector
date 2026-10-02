@@ -790,3 +790,61 @@ func TestStopInfo(t *testing.T) {
 		t.Error("only target_not_reached gets an explanation")
 	}
 }
+
+func TestDiagnosticsReports(t *testing.T) {
+	e := newEnv(t)
+	old, ob := sample(300, 2)
+	nr := report.SampleDiagnostics(report.SampleHosts[2], 301, time.Now())
+	nb, _ := json.Marshal(nr)
+	for _, b := range [][]byte{ob, nb} {
+		if code, out := e.upload(e.key, b, true); code != 201 {
+			t.Fatalf("upload: %d %v", code, out)
+		}
+	}
+	if !nr.HasDiagnostics() || old.HasDiagnostics() {
+		t.Fatal("HasDiagnostics")
+	}
+	_, list := e.get(e.client, "/reports")
+	if strings.Count(list, ">Diagnostics</span>") != 1 {
+		t.Error("list should mark exactly the 1.6 report")
+	}
+	_, np := e.get(e.client, "/reports/"+nr.ReportID)
+	for _, w := range []string{"Diagnostics report", "At stop", "Failures began at", "503 (Service Unavailable)", "PBXware's view",
+		"SwarmDialer health", "Timeline (", "Stopped: host CPU", "MOS from 199 sampled calls"} {
+		if !strings.Contains(np, w) {
+			t.Errorf("diagnostics page missing %q", w)
+		}
+	}
+	_, op := e.get(e.client, "/reports/"+old.ReportID)
+	if !strings.Contains(op, "Standard report") || strings.Contains(op, "At stop") || strings.Contains(op, "Timeline (") {
+		t.Error("old report page must stay as it was")
+	}
+	_, cp := e.get(e.client, "/compare?ids="+old.ReportID+","+nr.ReportID)
+	if !strings.Contains(cp, "Stop detail") || !strings.Contains(cp, "Main failure cause") {
+		t.Error("compare rows for diagnostics")
+	}
+}
+
+func TestDiagInfo(t *testing.T) {
+	c430, s95 := 430, 95
+	q := 264
+	v := 61.0
+	tst := report.Test{Result: report.Result{StopReason: "vps_cpu_limit", StopDetail: "MT VPS CPU 390% of its 4-core limit",
+		MaxConcurrentCalls: 480, Calls: report.Calls{Started: 520, Answered: 483, Failed: 37},
+		QualityDegradedAtCalls: &q, QualityDegradedReason: "p95 call setup 649 ms",
+		AtStop:   &report.AtStop{HostCPUPct: 61, HostMemPct: 40, SwarmDialerCPUPct: 30, VPS: map[string]report.VPSAtStop{"CC": {CPUPctOfLimit: &v}}},
+		Failures: []report.Failure{{Cause: "rejected", SIPCode: 503, Count: 37, FirstAtCalls: &c430, FirstAtS: &s95}},
+		PBXware:  &report.PBXwareView{ActiveCallsPeak: map[string]float64{"MT": 440}},
+		Tool:     &report.ToolHealth{UDPSendErrors: 12}}}
+	s := diagInfo(tst)
+	for _, w := range []string{"limited by SwarmDialer", "Stopped: MT VPS CPU 390% of its 4-core limit.", "host CPU 61%", "CC VPS CPU 61% of its limit",
+		"Failures began at 430 calls: 37 calls rejected with 503 (Service Unavailable).", "PBXware counted at most 440 active calls on MT, SwarmDialer 480: call legs were lost.",
+		"Call quality degraded from 264 calls (p95 call setup 649 ms)."} {
+		if !strings.Contains(s, w) {
+			t.Errorf("missing %q in %q", w, s)
+		}
+	}
+	if diagInfo(report.Test{Result: report.Result{StopReason: "target_reached"}}) != "" {
+		t.Error("a clean target_reached test has nothing to explain")
+	}
+}

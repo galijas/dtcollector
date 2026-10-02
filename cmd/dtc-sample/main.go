@@ -22,12 +22,16 @@ func main() {
 	url := flag.String("upload", "", "upload to this base URL instead of printing (e.g. https://dt.example.com)")
 	key := flag.String("key", os.Getenv("DTC_UPLOAD_KEY"), "API (upload) key (or DTC_UPLOAD_KEY)")
 	hardware := flag.Bool("hardware", false, "hardware-only report (profile \"hardware\", no tests), as SwarmDialer sends it")
+	diag := flag.Bool("diag", false, "benchmark report with diagnostics, as SwarmDialer 1.6.0 sends it")
 	script := flag.Bool("script", false, "hardware-only report as the hardware collection script sends it (implies -hardware)")
 	flag.Parse()
 	if *host < 0 || *host >= len(report.SampleHosts) {
 		log.Fatalf("-host must be 0-%d", len(report.SampleHosts)-1)
 	}
 	r := report.Sample(report.SampleHosts[*host], *seed, time.Now())
+	if *diag {
+		r = report.SampleDiagnostics(report.SampleHosts[*host], *seed, time.Now())
+	}
 	if *hardware || *script {
 		r = report.SampleHardware(report.SampleHosts[*host], *seed, time.Now(), *script)
 	}
