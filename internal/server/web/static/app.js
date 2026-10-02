@@ -117,17 +117,19 @@
     pct: { fmt: function (v) { return v.toFixed(1) + '%'; }, tick: function (v) { return v + '%'; } },
     ms: { fmt: function (v) { return v.toFixed(0) + ' ms'; }, tick: function (v) { return v + ' ms'; } },
     count: { fmt: function (v) { return String(Math.round(v)); }, tick: function (v) { return String(v); } },
+    packets: { fmt: function (v) { return compact(v, 1000, ['', 'k', 'M', 'G']); }, tick: function (v) { return compact(v, 1000, ['', 'k', 'M', 'G']); } },
     bitps: { fmt: function (v) { return compact(v, 1000, ['bit/s', 'kbit/s', 'Mbit/s', 'Gbit/s']); }, tick: function (v) { return compact(v, 1000, ['', 'k', 'M', 'G']); } },
     bps: { fmt: function (v) { return compact(v, 1000, ['B/s', 'kB/s', 'MB/s', 'GB/s']); }, tick: function (v) { return compact(v, 1000, ['', 'k', 'M', 'G']); } },
     bytes: { fmt: function (v) { return compact(v, 1024, ['B', 'KiB', 'MiB', 'GiB', 'TiB']); }, tick: function (v) { return compact(v, 1024, ['', 'Ki', 'Mi', 'Gi', 'Ti']); } }
   };
-  var UNIT_LABEL = { calls: 'calls', pct: '%', ms: 'ms', count: 'per interval', bitps: 'bit/s', bps: 'bytes/s', bytes: 'bytes' };
+  var UNIT_LABEL = { calls: 'calls', pct: '%', ms: 'ms', count: 'per interval', packets: 'packets per interval', bitps: 'bit/s', bps: 'bytes/s', bytes: 'bytes' };
 
   // Chart definitions for one report: each has one unit (one y axis).
   var REPORT_CHARTS = [
     { title: 'Concurrent calls', unit: 'calls', lines: [['concurrent_calls', null, 'SwarmDialer'],
       ['pbxware_active_calls', 'MT', 'PBXware MT'], ['pbxware_active_calls', 'CC', 'PBXware CC']] },
     { title: 'Host CPU', unit: 'pct', max100: true, lines: [['host_cpu_pct', null, 'CPU'], ['host_iowait_pct', null, 'I/O wait']] },
+    { title: 'SwarmDialer send drops', unit: 'packets', skipZero: true, lines: [['swarmdialer_udp_send_drops', null, 'Packets dropped']] },
     { title: 'Host memory', unit: 'pct', max100: true, lines: [['host_mem_pct', null, 'Memory']] },
     { title: 'Asterisk CPU', unit: 'pct', groups: 'asterisk_cpu_pct' },
     { title: 'VPS CPU', unit: 'pct', groups: 'vps_cpu_pct' },
@@ -255,7 +257,7 @@
         var ys = [], labels = [], idx = [];
         lines.forEach(function (l, i) {
           var s = getSeries(t, l[0], l[1]);
-          if (hasData(s)) { ys.push(s); labels.push(l[2]); idx.push(i); }
+          if (hasData(s) && !(def.skipZero && !s.some(function (v) { return v; }))) { ys.push(s); labels.push(l[2]); idx.push(i); }
         });
         if (!ys.length) return;
         var n = Math.max.apply(null, ys.map(function (s) { return s.length; }));

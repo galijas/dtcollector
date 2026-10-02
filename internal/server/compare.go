@@ -143,6 +143,8 @@ func fmtPct(v float64) string { return fmtNum(v) + "%" }
 func fmtMS(v float64) string  { return fmtNum(v) + " ms" }
 func fmtSec(v float64) string { return fmtNum(v) + " s" }
 
+var mediaRows = map[string]bool{"MOS avg": true, "MOS min": true, "RTP received": true}
+
 func findTest(r *report.Report, id string) *report.Test {
 	for i := range r.Tests {
 		if r.Tests[i].ID == id {
@@ -187,6 +189,7 @@ func buildCompare(reports []compareReport) []compareTest {
 					if v, ok := m.str(t); ok && v != "" {
 						row.Cells[i].Text, any = v, true
 						if m.label == "Stop reason" {
+							row.Cells[i].Text = stopLabel(effectiveStop(reports[i].R, *t))
 							row.Cells[i].Info = testInfo(reports[i].R, *t)
 						}
 					}
@@ -194,6 +197,13 @@ func buildCompare(reports []compareReport) []compareTest {
 				}
 				if v, ok := m.num(t); ok {
 					row.Cells[i].Text, vals[i], has[i], any = m.format(v), v, true, true
+					// Media figures of a test whose audio SwarmDialer's VPS dropped are
+					// marked and left out of the best-value ranking.
+					if mediaRows[m.label] && mediaSuspect(reports[i].R, *t) {
+						row.Cells[i].Text += "*"
+						row.Cells[i].Info = "Unreliable: " + attribute(*t).dropText()
+						has[i] = false
+					}
 				}
 			}
 			if !any {

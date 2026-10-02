@@ -72,13 +72,14 @@
 <tr>
   <td class="test-name"><a href="#test-{{.ID}}">{{.ID}}</a><div class="hw-sub">{{testTitle .}}</div></td>
   <td class="num">{{$res.MaxConcurrentCalls}}</td>
-  <td class="stop-cell"><span class="status {{stopClass $res.StopReason}}">{{stop $res.StopReason}}</span>{{with testInfo $r .}}{{template "info" .}}{{end}}</td>
+  {{$stop := effStop $r .}}{{$suspect := mediaSuspect $r .}}
+  <td class="stop-cell"><span class="status {{stopClass $stop}}">{{stop $stop}}</span>{{with testInfo $r .}}{{template "info" .}}{{end}}</td>
   <td class="num">{{pct $res.AtTarget.HostCPUPct}}</td>
   <td class="num">{{pct $res.AtTarget.HostMemPct}}</td>
   <td class="num">{{range $g, $v := $res.AtTarget.AsteriskCPUPct}}<div>{{$g}} {{pct $v}}</div>{{end}}</td>
   <td class="num">{{num $res.SetupMS.Avg}} / {{num $res.SetupMS.P95}} / {{num $res.SetupMS.Max}} ms</td>
-  <td class="num">{{num $res.MOS.Avg}} / {{num $res.MOS.Min}}</td>
-  <td class="num">{{with $res.RTPReceivedRatio}}{{printf "%.2f" (deref .)}}{{else}}–{{end}}</td>
+  <td class="num{{if $suspect}} unreliable{{end}}"{{if $suspect}} title="Unreliable: SwarmDialer's VPS dropped outgoing audio during this test"{{end}}>{{num $res.MOS.Avg}} / {{num $res.MOS.Min}}{{if $suspect}}*{{end}}</td>
+  <td class="num{{if $suspect}} unreliable{{end}}"{{if $suspect}} title="Unreliable: SwarmDialer's VPS dropped outgoing audio during this test"{{end}}>{{with $res.RTPReceivedRatio}}{{printf "%.2f" (deref .)}}{{else}}–{{end}}{{if $suspect}}*{{end}}</td>
   <td class="num">{{$res.Calls.Started}} / {{$res.Calls.Answered}} / {{$res.Calls.Failed}}</td>
   <td class="wide">{{with $res.Recording}}
     {{with .RamdiskFullEstimatedAtCalls}}<div>RAM disk full at ~{{deref .}} calls (est.)</div>{{end}}
@@ -93,7 +94,7 @@
 {{range $r.Tests}}
 <section class="test-block" id="test-{{.ID}}" data-test="{{.ID}}">
   <h2>{{.ID}} <span class="muted">· {{testTitle .}}</span></h2>
-  <p class="sub">{{tsStr .StartedAt}} to {{tsStr .FinishedAt}} · {{num .CallDurationS}} s calls · {{num .DialRateCPS}} calls/s · max {{.Result.MaxConcurrentCalls}} calls, <span class="status {{stopClass .Result.StopReason}}">{{stop .Result.StopReason}}</span>{{if not $diag}}{{with testInfo $r .}}{{template "info" .}}{{end}}{{end}}</p>
+  <p class="sub">{{tsStr .StartedAt}} to {{tsStr .FinishedAt}} · {{num .CallDurationS}} s calls · {{num .DialRateCPS}} calls/s · max {{.Result.MaxConcurrentCalls}} calls, {{$stop := effStop $r .}}<span class="status {{stopClass $stop}}">{{stop $stop}}</span>{{if not $diag}}{{with testInfo $r .}}{{template "info" .}}{{end}}{{end}}</p>
   {{if $diag}}{{template "diagnostics" .}}{{end}}
   <div class="charts"><p class="chart-empty">Loading charts…</p></div>
 </section>
@@ -102,7 +103,7 @@
 {{end}}
 {{end}}
 
-{{define "diagnostics"}}{{$res := .Result}}
+{{define "diagnostics"}}{{$t := .}}{{$res := .Result}}
 <div class="diag">
   {{with diagInfo .}}<p class="diag-summary">{{.}}</p>{{end}}
   <div class="env-grid">
@@ -150,10 +151,11 @@
       </tbody></table>
       {{with .MediaReceived}}
       <table><thead><tr><th>Audio from</th><th class="num">Calls</th><th class="num">Loss</th><th class="num">Jitter avg / max</th></tr></thead><tbody>
-      {{range $role, $m := .}}<tr><td>{{$role}}</td><td class="num">{{$m.Calls}}</td><td class="num">{{pct $m.LossPct}}</td><td class="num">{{num $m.JitterMSAvg}} / {{num $m.JitterMSMax}} ms</td></tr>{{end}}
+      {{range $role, $m := .}}<tr><td>{{$role}}</td><td class="num">{{$m.Calls}}</td><td class="num{{if testSuspect $t}} unreliable{{end}}">{{pct $m.LossPct}}{{if testSuspect $t}}*{{end}}</td><td class="num">{{num $m.JitterMSAvg}} / {{num $m.JitterMSMax}} ms</td></tr>{{end}}
       </tbody></table>
       {{end}}
-      {{range toolWarnings .}}<p class="warn-line">{{.}}</p>{{else}}<p class="ok-line">SwarmDialer held up during this test.</p>{{end}}
+      {{if not (toolLimited $t)}}<p class="ok-line">SwarmDialer was not the limit in this test.</p>{{end}}
+      {{range toolWarnings $t}}<p class="{{if toolLimited $t}}warn-line{{else}}note-line{{end}}">{{.}}</p>{{end}}
     </div>
     {{end}}
     {{with $res.Recording}}{{if or .MP3ByInstance .MissingRecordings}}

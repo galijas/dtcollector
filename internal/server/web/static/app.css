@@ -214,6 +214,9 @@ table.kv tbody tr:hover td { background: none; }
 tr.near-limit th, tr.near-limit td { color: var(--danger); font-weight: 600; }
 .warn-line { margin: 8px 0 0; color: var(--accent); }
 .warn-line::before { content: "▲ "; }
+.note-line { margin: 8px 0 0; color: var(--muted); }
+.note-line::before { content: "ⓘ "; }
+td.unreliable { color: var(--muted); text-decoration: line-through dotted; text-decoration-thickness: 1px; }
 .ok-line { margin: 8px 0 0; color: var(--ok); }
 .ok-line::before { content: "● "; }
 details.timeline > summary { cursor: pointer; font-family: var(--mono); font-weight: 600; padding: 4px 0; }

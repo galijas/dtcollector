@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	"dtcollector/internal/report"
@@ -167,27 +168,142 @@ func headroom(a *report.AtStop) []string {
 	return append(out, "SwarmDialer CPU "+pctText(a.SwarmDialerCPUPct))
 }
 
-// toolWarnings are the spec's warnings about the load generator.
-func toolWarnings(t *report.ToolHealth) []string {
+// Attribution (DTCollector_attribution_fix.md): SwarmDialer runs on the host
+// it tests, so its VPS drops outgoing packets when the host is saturated.
+// Drops then are a side effect of the host's load, not a SwarmDialer limit.
+
+const (
+	busyHostCPU     = 80.0 // host CPU % at which the host counts as busy
+	significantDrop = 0.1  // drop % from which drops affect the figures
+	toolLimitDrop   = 1.0  // drop % that, on a quiet host, limits the result
+	toolCPULimit    = 80.0 // SwarmDialer CPU stop limit
+)
+
+// sendDropPct is the share of SwarmDialer's outgoing packets its VPS
+// dropped: the 1.6.1 field, else estimated from the call load (2 legs x 50
+// packets/s per call). ok is false when nothing was dropped or is unknown.
+func sendDropPct(t report.Test) (pct float64, ok bool) {
+	tool := t.Result.Tool
+	if tool == nil || tool.UDPSendErrors == 0 {
+		return 0, false
+	}
+	if tool.UDPSendDropPct != nil {
+		return *tool.UDPSendDropPct, true
+	}
+	iv := t.Timeseries.IntervalS
+	if iv <= 0 {
+		iv = 5
+	}
+	sent := 0.0
+	for _, c := range series(t, "concurrent_calls") {
+		if c != nil {
+			sent += *c * 2 * 50 * iv
+		}
+	}
+	if sent <= 0 {
+		return 0, false
+	}
+	return 100 * float64(tool.UDPSendErrors) / (sent + float64(tool.UDPSendErrors)), true
+}
+
+// hostCPUAtDrops is the host CPU when the drops began: the 1.6.1 event's
+// value (known), else the test's peak host CPU (an estimate).
+func hostCPUAtDrops(t report.Test) (cpu float64, known bool) {
+	for _, e := range t.Result.Events {
+		if e.Code == "udp_send_drops" && e.Value != nil {
+			return *e.Value, true
+		}
+	}
+	peak := 0.0
+	for _, v := range series(t, "host_cpu_pct") {
+		if v != nil && *v > peak {
+			peak = *v
+		}
+	}
+	return peak, false
+}
+
+// attribution sums up who limited a test.
+type attribution struct {
+	dropPct      float64
+	drops        bool // drops_significant
+	hostBusy     bool // host_busy_at_drops
+	hostCPU      float64
+	hostCPUKnown bool // from the 1.6.1 event; else hostCPU is the test's peak
+	toolLimited  bool // swarmdialer_limited
+	mediaSuspect bool // MOS, audio received and loss are unreliable
+}
+
+func attribute(t report.Test) attribution {
+	var a attribution
+	pct, ok := sendDropPct(t)
+	a.dropPct = pct
+	a.drops = ok && pct >= significantDrop
+	if ok {
+		a.hostCPU, a.hostCPUKnown = hostCPUAtDrops(t)
+		a.hostBusy = a.hostCPU >= busyHostCPU
+	}
+	res := t.Result
+	// Drops on a quiet host blame SwarmDialer only when the host CPU at the
+	// first drop is known (1.6.1). For 1.6.0 reports only the test's peak is
+	// known, which can't show the host was quiet when the drops began.
+	a.toolLimited = res.StopReason == "swarmdialer_overloaded" ||
+		(res.Tool != nil && res.Tool.SwarmDialerCPUPeakPct >= toolCPULimit) ||
+		(a.drops && !a.hostBusy && a.hostCPUKnown && pct >= toolLimitDrop)
+	a.mediaSuspect = a.drops
+	return a
+}
+
+func (a attribution) dropText() string {
+	if !a.hostBusy && !a.hostCPUKnown {
+		return fmt.Sprintf("SwarmDialer's VPS dropped %s of its outgoing packets (host CPU peaked at %s; this report doesn't record the host's load when the drops began). "+
+			"SwarmDialer's CPU stayed under its limit. This affects the audio figures (MOS, audio received, loss), not the call failures.", pct1(a.dropPct), pct1(a.hostCPU))
+	}
+	if a.hostBusy {
+		return fmt.Sprintf("SwarmDialer's VPS dropped %s of its outgoing packets while the host was saturated (host CPU %s when the drops began). "+
+			"SwarmDialer runs on the tested host, so a saturated host also delays its network. "+
+			"This affects the audio figures (MOS, audio received, loss), not the call failures.", pct1(a.dropPct), pct1(a.hostCPU))
+	}
+	return fmt.Sprintf("SwarmDialer's VPS dropped %s of its outgoing packets while the host was not busy (host CPU %s), so SwarmDialer's network limited the result. "+
+		"The audio figures (MOS, audio received, loss) are unreliable.", pct1(a.dropPct), pct1(a.hostCPU))
+}
+
+func round1(v float64) float64 { return math.Round(v*10) / 10 }
+
+// pct1 formats a percentage with at most one decimal: "29.1%", "2.4%", "40%".
+func pct1(v float64) string { return strconv.FormatFloat(round1(v), 'f', -1, 64) + "%" }
+
+// mediaSuspect: the test's MOS, audio received and loss are unreliable.
+func mediaSuspect(r *report.Report, t report.Test) bool {
+	return r.HasDiagnostics() && attribute(t).mediaSuspect
+}
+
+// toolWarnings are the warnings about the load generator.
+func toolWarnings(test report.Test) []string {
+	t := test.Result.Tool
 	if t == nil {
 		return nil
 	}
 	var w []string
 	if t.UDPSendErrors > 0 {
-		w = append(w, fmt.Sprintf("SwarmDialer dropped %d outgoing packets (send queue full), so packet loss seen by PBXware may be the tool's fault.", t.UDPSendErrors))
+		if a := attribute(test); a.drops {
+			w = append(w, a.dropText())
+		} else {
+			w = append(w, fmt.Sprintf("SwarmDialer's VPS dropped %d outgoing packets (under 0.1%% of what it sent); this doesn't affect the figures.", t.UDPSendErrors))
+		}
 	}
 	if t.UDPReceiveErrors > 0 {
 		w = append(w, fmt.Sprintf("SwarmDialer dropped %d incoming packets (receive buffer full or errors).", t.UDPReceiveErrors))
 	}
 	for _, role := range roles(t.MediaReceived) {
 		if m := t.MediaReceived[role]; m.LossPct > 1 {
-			w = append(w, fmt.Sprintf("%s%% of the audio from %s was lost between PBXware and SwarmDialer.", fmtNum(m.LossPct), role))
+			w = append(w, fmt.Sprintf("%s of the audio from %s was lost between PBXware and SwarmDialer.", pct1(m.LossPct), role))
 		}
 	}
 	if t.NotRegisteredAtEnd > 0 {
 		w = append(w, fmt.Sprintf("%d of %d extensions weren't registered at the end, so they couldn't take calls.", t.NotRegisteredAtEnd, t.Extensions))
 	}
-	if t.SwarmDialerCPUPeakPct >= 80 {
+	if t.SwarmDialerCPUPeakPct >= toolCPULimit {
 		w = append(w, fmt.Sprintf("SwarmDialer's CPU peaked at %s, at or over its 80%% limit.", pctText(t.SwarmDialerCPUPeakPct)))
 	}
 	return w
@@ -233,9 +349,13 @@ func pbxwareNotes(res report.Result) []string {
 func diagInfo(t report.Test) string {
 	res := t.Result
 	var out []string
-	tw := toolWarnings(res.Tool)
-	if res.StopReason == "swarmdialer_overloaded" || (res.Tool != nil && res.Tool.UDPSendErrors > 0) {
-		out = append(out, "The result is limited by SwarmDialer, the load generator, not by the host.")
+	a := attribute(t)
+	if a.toolLimited {
+		s := "The result is limited by SwarmDialer, the load generator, not by the host."
+		if a.drops && !a.hostBusy {
+			s += fmt.Sprintf(" Its VPS dropped %s of its outgoing packets while the host was not busy.", pct1(a.dropPct))
+		}
+		out = append(out, s)
 	}
 	if res.StopDetail != "" {
 		s := "Stopped: " + res.StopDetail + "."
@@ -271,7 +391,14 @@ func diagInfo(t report.Test) string {
 		}
 		out = append(out, s+".")
 	}
-	out = append(out, tw...)
+	if a.drops && !a.toolLimited {
+		out = append(out, a.dropText())
+	}
+	for _, w := range toolWarnings(t) {
+		if !strings.HasPrefix(w, "SwarmDialer's VPS dropped") {
+			out = append(out, w)
+		}
+	}
 	return strings.Join(out, " ")
 }
 
@@ -317,6 +444,12 @@ func eventText(e report.Event) string {
 		return "Reading " + src + " failed; data from it may be missing"
 	case "stop":
 		return "Test stopped placing calls: " + stopLabel(e.Reason)
+	case "udp_send_drops":
+		s := fmt.Sprintf("SwarmDialer's VPS started dropping outgoing packets (%d in 5 s)", e.Count)
+		if e.Value != nil {
+			s += fmt.Sprintf(", host CPU %s", pct1(*e.Value))
+		}
+		return s
 	}
 	return e.Code
 }

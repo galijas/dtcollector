@@ -771,8 +771,16 @@ func TestStopInfo(t *testing.T) {
 	q := 237
 	rolling := report.Test{Mode: "rolling", DialRateCPS: 8.5, CallDurationS: 60,
 		Result: report.Result{StopReason: "target_not_reached", MaxConcurrentCalls: 510, Calls: report.Calls{Started: 1845, Answered: 1845}}}
-	if s := stopInfo(r, rolling); !strings.Contains(s, "510 of 512 calls ran at once") || !strings.Contains(s, "at most 510 calls can run at once") {
+	if s := stopInfo(r, rolling); !strings.Contains(s, "its real target is 510, not 512") || !strings.Contains(s, "the target was reached") {
 		t.Errorf("rolling by design: %q", s)
+	}
+	if effectiveStop(r, rolling) != "target_reached" {
+		t.Error("an older rolling test at 510 of 510 counts as reached")
+	}
+	short := rolling
+	short.Result.MaxConcurrentCalls = 341
+	if effectiveStop(r, short) != "target_not_reached" || !strings.Contains(stopInfo(r, short), "341 of 512") {
+		t.Error("a rolling test well short of 505 stays not reached")
 	}
 	failing := report.Test{Mode: "rolling", DialRateCPS: 9, CallDurationS: 60,
 		Result: report.Result{StopReason: "target_not_reached", MaxConcurrentCalls: 334, QualityDegradedAtCalls: &q,
@@ -844,7 +852,7 @@ func TestDiagInfo(t *testing.T) {
 		AtStop:   &report.AtStop{HostCPUPct: 61, HostMemPct: 40, SwarmDialerCPUPct: 30, VPS: map[string]report.VPSAtStop{"CC": {CPUPctOfLimit: &v}}},
 		Failures: []report.Failure{{Cause: "rejected", SIPCode: 503, Count: 37, FirstAtCalls: &c430, FirstAtS: &s95}},
 		PBXware:  &report.PBXwareView{ActiveCallsPeak: map[string]float64{"MT": 440}},
-		Tool:     &report.ToolHealth{UDPSendErrors: 12}}}
+		Tool:     &report.ToolHealth{SwarmDialerCPUPeakPct: 85}}}
 	s := diagInfo(tst)
 	for _, w := range []string{"limited by SwarmDialer", "Stopped: MT VPS CPU 390% of its 4-core limit.", "host CPU 61%", "CC VPS CPU 61% of its limit",
 		"Failures began at 430 calls: 37 calls rejected with 503 (Service Unavailable).", "PBXware counted at most 440 active calls on MT, SwarmDialer 480: call legs were lost.",
@@ -855,5 +863,70 @@ func TestDiagInfo(t *testing.T) {
 	}
 	if diagInfo(report.Test{Result: report.Result{StopReason: "target_reached"}}) != "" {
 		t.Error("a clean target_reached test has nothing to explain")
+	}
+}
+
+// The cases in DTCollector_attribution_fix.md, shaped like report f076747c.
+func TestAttribution(t *testing.T) {
+	var cs []string // a 10-minute ramp to 512 and a minute's hold, 5-second samples
+	for i := 0; i <= 132; i++ {
+		cs = append(cs, strconv.Itoa(min(512, i*512/120)))
+	}
+	conc := json.RawMessage("[" + strings.Join(cs, ",") + "]")
+	f := func(v float64) *float64 { return &v }
+	mk := func(drops uint64, dropPct *float64, hostCPU string, sdCPU float64, failed int, events []report.Event) report.Test {
+		return report.Test{Mode: "ramp", Result: report.Result{StopReason: "target_not_reached", MaxConcurrentCalls: 509,
+			Calls: report.Calls{Started: 512, Answered: 512 - failed, Failed: failed}, Events: events,
+			Tool: &report.ToolHealth{SwarmDialerCPUPeakPct: sdCPU, UDPSendErrors: drops, UDPSendDropPct: dropPct, Extensions: 1024}},
+			Timeseries: report.Timeseries{IntervalS: 5, Series: map[string]json.RawMessage{"concurrent_calls": conc,
+				"host_cpu_pct": json.RawMessage(hostCPU)}}}
+	}
+	// Test 2: drops on a busy host (1.6.0, no percentage: estimated).
+	t2 := mk(3876583, nil, `[5,40,80,92.9,90,60,5]`, 38.5, 3, nil)
+	a := attribute(t2)
+	if a.toolLimited || !a.drops || !a.hostBusy || !a.mediaSuspect || a.dropPct < 10 || a.dropPct > 35 {
+		t.Errorf("test 2: %+v", a)
+	}
+	s := diagInfo(t2)
+	if strings.Contains(s, "limited by SwarmDialer") || !strings.Contains(s, "while the host was saturated (host CPU 92.9% when the drops began)") ||
+		!strings.Contains(s, "not the call failures") {
+		t.Errorf("test 2 text: %q", s)
+	}
+	// Test 7: failures with no drops.
+	c341 := 341
+	t7 := mk(0, nil, `[5,50,88,87,80,40,5]`, 33.5, 772, nil)
+	t7.Result.Failures = []report.Failure{{Cause: "rejected", SIPCode: 603, Count: 500, FirstAtCalls: &c341}, {Cause: "no_answer", Count: 272}}
+	s = diagInfo(t7)
+	if strings.Contains(s, "SwarmDialer") || !strings.HasPrefix(s, "Failures began at 341 calls: 500 calls rejected with 603 (Decline)") {
+		t.Errorf("test 7 text: %q", s)
+	}
+	if attribute(t7).mediaSuspect {
+		t.Error("test 7: no drops, media figures are fine")
+	}
+	// SwarmDialer CPU over its limit.
+	if !attribute(mk(0, nil, `[5,40]`, 85, 0, nil)).toolLimited {
+		t.Error("CPU 85% must count as limited by SwarmDialer")
+	}
+	// Drops on a quiet host (1.6.1: percentage and event).
+	quiet := mk(90000, f(2.4), `[5,40,90,90]`, 30, 0, []report.Event{{Code: "udp_send_drops", Count: 900, Metric: "host_cpu", Value: f(40)}})
+	s = diagInfo(quiet)
+	if !attribute(quiet).toolLimited || !strings.Contains(s, "limited by SwarmDialer") || !strings.Contains(s, "dropped 2.4% of its outgoing packets while the host was not busy") {
+		t.Errorf("quiet-host drops: %q", s)
+	}
+	// 1.6.0 drops on a host that peaked under 80% (test 5): no event, so no blame.
+	t5 := mk(286787, nil, `[5,40,74.4,70,60]`, 34, 0, nil)
+	if a := attribute(t5); a.toolLimited || !a.mediaSuspect {
+		t.Errorf("test 5: %+v", a)
+	}
+	if s := diagInfo(t5); strings.Contains(s, "limited by SwarmDialer") || !strings.Contains(s, "doesn't record the host's load when the drops began") {
+		t.Errorf("test 5 text: %q", s)
+	}
+	// Tiny drops: information only, figures not flagged.
+	tiny := mk(20, f(0.01), `[5,90]`, 30, 0, nil)
+	if a := attribute(tiny); a.drops || a.mediaSuspect || a.toolLimited {
+		t.Errorf("tiny drops: %+v", a)
+	}
+	if w := toolWarnings(tiny); len(w) != 1 || !strings.Contains(w[0], "doesn't affect the figures") {
+		t.Errorf("tiny drops warning: %v", w)
 	}
 }

@@ -48,7 +48,7 @@
     {{with .System}}<div class="hw-sub">{{.}}</div>{{end}}
     <div class="hw-sub">{{if .CPUSockets}}{{.CPUSockets}} × {{end}}{{.CPUCores}} cores / {{.CPUThreads}} threads · {{gib .MemoryBytes}} RAM{{if .Disks}} · {{.Disks}}{{end}}</div>
   </td>
-  <td>{{if .IsHardware}}<span class="chip hw">Hardware only</span>{{else}}<div class="chips">{{range .Results}}<span class="chip{{if ne .StopReason "target_reached"}} warn{{end}}" title="{{.ID}}: {{.MaxConcurrentCalls}} calls, {{stop .StopReason}}">{{.MaxConcurrentCalls}}</span>{{end}}</div>{{end}}</td>
+  <td>{{if .IsHardware}}<span class="chip hw">Hardware only</span>{{else}}<div class="chips">{{$row := .}}{{range .Results}}{{$st := listStop $row .}}<span class="chip{{if ne $st "target_reached"}} warn{{end}}" title="{{.ID}}: {{.MaxConcurrentCalls}} calls, {{stop $st}}">{{.MaxConcurrentCalls}}</span>{{end}}</div>{{end}}</td>
   <td>{{.Note}}</td>
 </tr>
 {{end}}

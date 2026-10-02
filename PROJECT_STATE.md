@@ -144,6 +144,21 @@ Done:
   cause" rows (shown only when some report has them). Compare refuses to
   mix diagnostics and older reports (server check + list hint).
 - `dtc-sample -diag` generates a 1.6-style report (synthetic numbers).
+- Attribution (2026-10-02, `~/claude/DTCollector_attribution_fix.md`):
+  `attribute()` in diag.go. SwarmDialer's send drops on a busy host (host
+  CPU >= 80% at the first drop) are the host's load, not SwarmDialer: the
+  text says so and MOS / RTP received / loss are marked unreliable (struck
+  through, *, left out of compare's best). "Limited by SwarmDialer" only for
+  swarmdialer_overloaded, SwarmDialer CPU >= 80%, or drops >= 1% at a quiet
+  host known from the 1.6.1 `udp_send_drops` event. Deviation from the fix
+  file: for 1.6.0 reports (no event) a peak under 80% doesn't blame
+  SwarmDialer (report f076747c test 5 peaked at 74% with drops; the fix
+  file's own evidence says SwarmDialer was never the bottleneck). Drop %
+  estimated for 1.6.0 from calls x 2 legs x 50 pps (matches 29.1 / 4.4 /
+  2.3% on f076747c).
+- Older reports' rolling tests are re-judged by the 1.6.0 rule (target =
+  rate x call length = 510, reached at >= 505): `effectiveStop` /
+  `listStop` in stopinfo.go; the (i) explains the reclassification.
 
 ## Open items
 

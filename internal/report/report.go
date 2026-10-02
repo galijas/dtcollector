@@ -201,6 +201,7 @@ type PBXwareView struct {
 type ToolHealth struct {
 	SwarmDialerCPUPeakPct  float64                 `json:"swarmdialer_cpu_peak_pct"`
 	UDPSendErrors          uint64                  `json:"udp_send_errors"`
+	UDPSendDropPct         *float64                `json:"udp_send_drop_pct,omitempty"` // 1.6.1
 	UDPReceiveErrors       uint64                  `json:"udp_receive_errors"`
 	Extensions             int                     `json:"extensions"`
 	NotRegisteredAtStart   int                     `json:"not_registered_at_start"`

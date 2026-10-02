@@ -3,10 +3,12 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
 	"dtcollector/internal/report"
+	"dtcollector/internal/store"
 )
 
 const defaultTarget = 512
@@ -49,6 +51,14 @@ func pctOf(n, total int) string {
 // (call counts, time series, quality marker); empty for other stop reasons.
 func stopInfo(r *report.Report, t report.Test) string {
 	res := t.Result
+	if rollingReached(r, t) {
+		c := rollingCap(t)
+		return fmt.Sprintf("%d calls ran at once. At its highest dial rate (%s calls/s with %s s calls) this rolling test can run at most %d calls at once, "+
+			"so its real target is %d, not %d. Reports before SwarmDialer 1.6.0 judged it against %d and marked it \"Target not reached\"; "+
+			"by the 1.6.0 rule (%d or more, 99%% of %d) the target was reached.",
+			res.MaxConcurrentCalls, strconv.FormatFloat(t.DialRateCPS, 'f', -1, 64), strconv.FormatFloat(t.CallDurationS, 'f', -1, 64),
+			c, c, testTarget(r), testTarget(r), int(math.Ceil(rollingReachedShare*float64(c))), c)
+	}
 	if res.StopReason != "target_not_reached" {
 		return ""
 	}
@@ -93,4 +103,47 @@ func stopInfo(r *report.Report, t report.Test) string {
 		out = append(out, fmt.Sprintf("Host CPU peaked at %s%%.", fmtNum(peak)))
 	}
 	return strings.Join(out, " ")
+}
+
+// Rolling tests: SwarmDialer 1.6.0 set their target to what the highest
+// rate can run (rate x call length, 510 in the standard profile) and counts
+// 99% of it as reached. Older reports were judged against 512, which the
+// rolling test can't reach, so their rolling results are re-judged here.
+const rollingReachedShare = 0.99
+
+func rollingCap(t report.Test) int {
+	if t.Mode != "rolling" || t.DialRateCPS <= 0 || t.CallDurationS <= 0 {
+		return 0
+	}
+	return int(t.DialRateCPS * t.CallDurationS)
+}
+
+// rollingReached: an older report's rolling test that the 1.6.0 rule counts
+// as having reached its target.
+func rollingReached(r *report.Report, t report.Test) bool {
+	if r.HasDiagnostics() || t.Result.StopReason != "target_not_reached" {
+		return false
+	}
+	c := rollingCap(t)
+	return c > 0 && c < testTarget(r) && float64(t.Result.MaxConcurrentCalls) >= math.Ceil(rollingReachedShare*float64(c))
+}
+
+// effectiveStop is the stop reason to show: the reported one, except older
+// rolling tests re-judged by the 1.6.0 rule.
+func effectiveStop(r *report.Report, t report.Test) string {
+	if rollingReached(r, t) {
+		return "target_reached"
+	}
+	return t.Result.StopReason
+}
+
+// listStop does the same for the report list, which only has the test's ID,
+// calls and stop reason: the standard profile's rolling test reaches 505 of
+// its 510 calls or more.
+func listStop(row store.ReportRow, tr report.TestResult) string {
+	if !row.HasDiagnostics() && tr.StopReason == "target_not_reached" && strings.HasPrefix(tr.ID, "rolling") &&
+		tr.MaxConcurrentCalls >= int(math.Ceil(rollingReachedShare*510)) && tr.MaxConcurrentCalls <= 510 {
+		return "target_reached"
+	}
+	return tr.StopReason
 }
