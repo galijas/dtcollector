@@ -25,7 +25,8 @@ by side, and keep a list of validated hardware.
     Supported. Virtual devices (names with virtual, virtio, QEMU, VMware,
     VBox), removable and optical media (USB flash disks, card readers,
     CD/DVD/BD drives) and placeholder models such as "ProductCode" are
-    skipped, and storage controllers follow the SW Analytics
+    skipped, RAID volumes reported as drives (e.g. "PERC H710P") are listed
+    as the storage controller they name, and storage controllers follow the SW Analytics
     rules: only RAID/HBA cards and boot RAID devices are added (no chipset
     SATA/AHCI, BMC virtual media, USB storage or NVMe drives).
   - **Export PDF** downloads the list as shown (search and filters

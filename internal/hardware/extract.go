@@ -37,6 +37,44 @@ func Removable(names ...string) bool {
 	return false
 }
 
+// RAID cards present their arrays to the OS as drives named after the card
+// ("PERC H710P") or with a generic name ("LOGICAL VOLUME"). Such a volume is
+// not a drive to validate; a card name is recorded as a storage controller.
+var raidCardVolumeRes = []struct {
+	re     *regexp.Regexp
+	vendor string
+}{
+	{regexp.MustCompile(`(?i)^(?:Dell\s+)?(PERC\b.*)$`), "Dell"},
+	{regexp.MustCompile(`(?i)^(?:LSI|AVAGO|Broadcom)?\s*((?:MR\d{4}|MegaRAID)\b.*)$`), "Broadcom (LSI)"},
+	{regexp.MustCompile(`(?i)^(?:IBM|Lenovo)?\s*(ServeRAID\b.*)$`), ""},
+	{regexp.MustCompile(`(?i)^(?:Fujitsu)?\s*(PRAID\b.*)$`), "Fujitsu"},
+}
+
+var raidGenericVolumeRe = regexp.MustCompile(`(?i)^(?:(?:HP|HPE|COMPAQ)\s+)?LOGICAL VOLUME$|^Logical Disk\b|^SMC\d{4}$|^RAID\s?\d+\b`)
+
+// RAIDVolume reports whether a drive model is a RAID card's volume, and
+// returns the card's name for the storage controller list ("Dell PERC
+// H710P"), or "" when the model doesn't name the card.
+func RAIDVolume(model string) (card string, ok bool) {
+	model = tidy(model)
+	for _, v := range raidCardVolumeRes {
+		if m := v.re.FindStringSubmatch(model); m != nil {
+			return JoinName(v.vendor, tidy(m[1])), true
+		}
+	}
+	return "", raidGenericVolumeRe.MatchString(model)
+}
+
+// IsRAIDVolume is RAIDVolume for any of a part's names.
+func IsRAIDVolume(names ...string) bool {
+	for _, n := range names {
+		if _, ok := RAIDVolume(n); ok {
+			return true
+		}
+	}
+	return false
+}
+
 // Storage controllers follow the SW Analytics rules: only RAID/HBA cards and
 // boot RAID devices are hardware to validate. Each pattern is matched
 // against the part's name and the raw name it was reported as.
@@ -135,6 +173,12 @@ func FromReport(r *report.Report) []Part {
 	for _, d := range h.Disks {
 		model := tidy(strings.ReplaceAll(d.Model, "_", " "))
 		if !usable(model) {
+			continue
+		}
+		if card, ok := RAIDVolume(model); ok {
+			if card != "" {
+				add(Part{Category: CatController, Name: card, Aliases: raw(d.Model)})
+			}
 			continue
 		}
 		add(Part{Category: CatDrive, Name: model, Attrs: Attrs{Type: DriveType(d.Type)}, Aliases: raw(d.Model)})

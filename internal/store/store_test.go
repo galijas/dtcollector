@@ -141,3 +141,40 @@ func TestRemoveRemovableMedia(t *testing.T) {
 		t.Errorf("kept %q, want k5 (real SSD) and k6 (manual)", kept)
 	}
 }
+
+func TestMoveRAIDVolumes(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for _, r := range [][4]string{
+		{"drive", "PERC H710P", "swhw", "k1"},
+		{"drive", "LOGICAL VOLUME", "test_script", "k2"},
+		{"drive", "PERC H730P", "swhw", "k3"},                 // card already listed (datasheet alias)
+		{"drive", "PERC H999 (kept by hand)", "manual", "k4"}, // manual entries stay
+		{"drive", "SAMSUNG MZ7L3240HCHQ-00A07", "swhw", "k5"},
+	} {
+		st.db.Exec(`INSERT INTO hw_parts(category, name, name_key, status, source, aliases, created_at, updated_at)
+			VALUES(?, ?, ?, 'supported', ?, json_array(?), '', '')`, r[0], r[1], r[3], r[2], r[1])
+	}
+	tx, _ := st.db.Begin()
+	if err := moveRAIDVolumes(tx); err != nil {
+		t.Fatal(err)
+	}
+	tx.Commit()
+	var kept string
+	st.db.QueryRow(`SELECT group_concat(name_key) FROM (SELECT name_key FROM hw_parts WHERE name_key IN ('k1','k2','k3','k4','k5') ORDER BY name_key)`).Scan(&kept)
+	if kept != "k4,k5" {
+		t.Errorf("drives kept %q, want k4 (manual) and k5 (real SSD)", kept)
+	}
+	var n int
+	st.db.QueryRow(`SELECT COUNT(*) FROM hw_parts WHERE category = 'storage_controller' AND name = 'Dell PERC H710P' AND source = 'swhw'`).Scan(&n)
+	if n != 1 {
+		t.Errorf("Dell PERC H710P controllers: %d, want 1", n)
+	}
+	st.db.QueryRow(`SELECT COUNT(*) FROM hw_parts WHERE category = 'storage_controller' AND name LIKE '%H730P%'`).Scan(&n)
+	if n != 1 {
+		t.Errorf("H730P controllers: %d, want 1 (the seeded one)", n)
+	}
+}

@@ -213,3 +213,43 @@ func TestRemovableMediaSkipped(t *testing.T) {
 		}
 	}
 }
+
+// RAID volumes reported as drives are not drives; a card name goes to the
+// storage controllers (the PowerEdge R620 upload listed "PERC H710P" twice).
+func TestRAIDVolumesBecomeControllers(t *testing.T) {
+	r := report.SampleHardware(report.SampleHosts[0], 5, time.Now(), true)
+	h := &r.Environment.Host
+	h.Disks = append(h.Disks, report.Disk{Model: "PERC H710P"}, report.Disk{Model: "PERC H710P"},
+		report.Disk{Model: "LOGICAL VOLUME"}, report.Disk{Model: "SAMSUNG MZ7L3240HCHQ-00A07", Type: "ssd"})
+	got := map[string]string{}
+	for _, p := range FromReport(r) {
+		got[p.Name] = p.Category
+	}
+	if got["Dell PERC H710P"] != CatController {
+		t.Errorf("PERC H710P not listed as a storage controller: %v", got)
+	}
+	if _, ok := got["PERC H710P"]; ok {
+		t.Error("PERC H710P kept as a drive")
+	}
+	if _, ok := got["LOGICAL VOLUME"]; ok {
+		t.Error("LOGICAL VOLUME kept")
+	}
+	if got["SAMSUNG MZ7L3240HCHQ-00A07"] != CatDrive {
+		t.Error("a real drive was dropped")
+	}
+	for model, want := range map[string]string{
+		"PERC H730P Mini": "Dell PERC H730P Mini", "Dell PERC H740P": "Dell PERC H740P",
+		"MR9361-8i": "Broadcom (LSI) MR9361-8i", "AVAGO MR9361-8i": "Broadcom (LSI) MR9361-8i",
+		"ServeRAID M5210": "ServeRAID M5210", "PRAID EP420i": "Fujitsu PRAID EP420i",
+		"LOGICAL VOLUME": "", "HP LOGICAL VOLUME": "",
+	} {
+		if card, ok := RAIDVolume(model); !ok || card != want {
+			t.Errorf("RAIDVolume(%q) = %q, %v; want %q", model, card, ok, want)
+		}
+	}
+	for _, s := range []string{"INTEL SSDSC2KB960G8", "ST9146853SS", "Micron_5300_MTFDDAK960TDS", "WDC WD2000FYYZ-01UL1B3", "5SRB192CCLAR1920"} {
+		if _, ok := RAIDVolume(s); ok {
+			t.Errorf("real drive taken for a RAID volume: %q", s)
+		}
+	}
+}

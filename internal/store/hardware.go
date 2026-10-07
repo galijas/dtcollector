@@ -78,6 +78,63 @@ func removeRemovableMedia(tx *sql.Tx) error {
 	return removeReportParts(tx, hardware.CatController, hardware.Removable)
 }
 
+// moveRAIDVolumes (migration 12) deletes RAID volumes that reports added as
+// drives ("PERC H710P", "LOGICAL VOLUME") and lists the card they name as a
+// storage controller, unless the list already has it. Manual and seeded
+// entries stay.
+func moveRAIDVolumes(tx *sql.Tx) error {
+	rows, err := tx.Query(`SELECT id, name, aliases, status, source, source_report_id, created_at FROM hw_parts
+		WHERE category = ? AND source IN (?, ?)`, hardware.CatDrive, hardware.SourceTestScript, hardware.SourceSWHW)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	var cards []hardware.Part
+	for rows.Next() {
+		var id int64
+		var name, aliases string
+		var rep sql.NullString
+		p := hardware.Part{Category: hardware.CatController}
+		if err := rows.Scan(&id, &name, &aliases, &p.Status, &p.Source, &rep, &p.CreatedAt); err != nil {
+			rows.Close()
+			return err
+		}
+		var a []string
+		json.Unmarshal([]byte(aliases), &a)
+		if !hardware.IsRAIDVolume(append([]string{name}, a...)...) {
+			continue
+		}
+		ids = append(ids, id)
+		if card, _ := hardware.RAIDVolume(name); card != "" {
+			p.Name, p.Aliases, p.SourceReportID = card, a, rep.String
+			cards = append(cards, p)
+		}
+	}
+	rows.Close()
+	for _, id := range ids {
+		if _, err := tx.Exec(`DELETE FROM hw_parts WHERE id = ?`, id); err != nil {
+			return err
+		}
+	}
+	idx, err := keyIndex(tx, hardware.CatController)
+	if err != nil {
+		return err
+	}
+	for i := range cards {
+		p := &cards[i]
+		if conflict(idx, p) != nil {
+			continue
+		}
+		if _, err := insertPart(tx, p); err != nil {
+			return err
+		}
+		for _, k := range p.Keys() {
+			idx[k] = p
+		}
+	}
+	return nil
+}
+
 // removeReportParts deletes report-added parts (of one category, or all when
 // category is empty) whose name or raw names match skip.
 func removeReportParts(tx *sql.Tx, category string, skip func(...string) bool) error {

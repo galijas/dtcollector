@@ -130,6 +130,7 @@ var migrations = []string{
 	"", // 9: remove virtual devices that reports added (hook only)
 	"", // 10: remove non-RAID/HBA storage controllers that reports added (hook only)
 	"", // 11: remove removable and optical media that reports added (hook only)
+	"", // 12: move RAID volumes that reports added as drives to storage controllers (hook only)
 }
 
 // migrationHooks run after a migration's SQL, in the same transaction.
@@ -138,6 +139,7 @@ var migrationHooks = map[int]func(*sql.Tx) error{
 	8:  removeVirtualParts,
 	9:  removeSkippedControllers,
 	10: removeRemovableMedia,
+	11: moveRAIDVolumes,
 }
 
 func (s *Store) migrate() error {

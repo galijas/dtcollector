@@ -102,6 +102,13 @@ Done:
   added to the DMI placeholder list). Size can't be used: hw-collect reports
   size 0 for many real SSDs. Migration 11 removed the five such parts
   reports had added; no false positives among the 387 live parts.
+- RAID volumes reported as drives (2026-10-07, `hardware.RAIDVolume`):
+  RAID cards present their arrays as drives named after the card ("PERC
+  H710P") or generically ("LOGICAL VOLUME"). They are not added as drives;
+  a card name is added as a storage controller with the vendor prefix the
+  list uses ("Dell PERC H710P", "Broadcom (LSI) MR9361-8i", "Fujitsu PRAID
+  EP420i"), unless already listed. Migration 12 moved the live "PERC H710P"
+  drive (PowerEdge R620 upload) to the controllers as "Dell PERC H710P".
 - Matching is conservative (exact after normalization), so a lspci-style
   name like "Intel Ethernet Controller X550" is added next to the
   datasheet's "Intel X550"; admins merge by deleting one. Smarter matching
