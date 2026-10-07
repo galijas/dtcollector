@@ -112,3 +112,32 @@ func TestRemoveSkippedControllers(t *testing.T) {
 		t.Errorf("kept %q, want k3 (RAID card) and k4 (manual)", kept)
 	}
 }
+
+func TestRemoveRemovableMedia(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for _, r := range [][4]string{
+		{"drive", "Flash Disk", "swhw", "k1"},
+		{"drive", "HL-DT-ST DVD+ -RW GU60N", "test_script", "k2"},
+		{"drive", "ProductCode", "swhw", "k3"},
+		{"storage_controller", "Chipsbank Microelectronics Flash Disk", "swhw", "k4"},
+		{"drive", "SAMSUNG MZ7L3240HCHQ-00A07", "swhw", "k5"},
+		{"drive", "USB backup disk (kept by hand)", "manual", "k6"},
+	} {
+		st.db.Exec(`INSERT INTO hw_parts(category, name, name_key, status, source, created_at, updated_at)
+			VALUES(?, ?, ?, 'supported', ?, '', '')`, r[0], r[1], r[3], r[2])
+	}
+	tx, _ := st.db.Begin()
+	if err := removeRemovableMedia(tx); err != nil {
+		t.Fatal(err)
+	}
+	tx.Commit()
+	var kept string
+	st.db.QueryRow(`SELECT group_concat(name_key) FROM (SELECT name_key FROM hw_parts WHERE name_key IN ('k1','k2','k3','k4','k5','k6') ORDER BY name_key)`).Scan(&kept)
+	if kept != "k5,k6" {
+		t.Errorf("kept %q, want k5 (real SSD) and k6 (manual)", kept)
+	}
+}

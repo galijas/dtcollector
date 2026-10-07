@@ -68,6 +68,16 @@ func removeSkippedControllers(tx *sql.Tx) error {
 	return removeReportParts(tx, hardware.CatController, hardware.SkipController)
 }
 
+// removeRemovableMedia (migration 11) deletes USB flash disks, card readers,
+// optical drives and placeholder models ("ProductCode") that reports added
+// as drives or storage controllers. Manual and seeded entries stay.
+func removeRemovableMedia(tx *sql.Tx) error {
+	if err := removeReportParts(tx, hardware.CatDrive, hardware.Removable); err != nil {
+		return err
+	}
+	return removeReportParts(tx, hardware.CatController, hardware.Removable)
+}
+
 // removeReportParts deletes report-added parts (of one category, or all when
 // category is empty) whose name or raw names match skip.
 func removeReportParts(tx *sql.Tx, category string, skip func(...string) bool) error {

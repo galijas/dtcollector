@@ -184,3 +184,32 @@ func TestControllerRulesMatchSWAnalytics(t *testing.T) {
 		}
 	}
 }
+
+// Removable and optical media, and the "ProductCode" placeholder of USB card
+// readers, are not imported (strings from live uploads).
+func TestRemovableMediaSkipped(t *testing.T) {
+	r := report.SampleHardware(report.SampleHosts[0], 5, time.Now(), true)
+	h := &r.Environment.Host
+	h.Disks = append(h.Disks, report.Disk{Model: "Flash Disk"}, report.Disk{Model: "HL-DT-ST DVD+ -RW GU60N"},
+		report.Disk{Model: "HL-DT-ST DVD+ -RW GU90N"}, report.Disk{Model: "ProductCode"}, report.Disk{Model: "TSSTcorp CDDVDW SN-208FB"},
+		report.Disk{Model: "SanDisk Cruzer Blade"}, report.Disk{Model: "SAMSUNG MZ7L3240HCHQ-00A07", Type: "ssd"})
+	h.StorageControllers = append(h.StorageControllers,
+		report.Controller{Vendor: "Chipsbank Microelectronics Co., Ltd", Product: "Flash Disk", Count: 1},
+		report.Controller{Vendor: "USB", Product: "Disk 2.0", Count: 1},
+		report.Controller{Vendor: "Broadcom / LSI", Product: "SAS2008 PCI-Express Fusion-MPT SAS-2 [Falcon]", Count: 1})
+	names := map[string]bool{}
+	for _, p := range FromReport(r) {
+		names[p.Name] = true
+		if Removable(append([]string{p.Name}, p.Aliases...)...) {
+			t.Errorf("removable media kept: %s (%s)", p.Name, p.Category)
+		}
+	}
+	if !names["SAMSUNG MZ7L3240HCHQ-00A07"] {
+		t.Error("a real drive was dropped")
+	}
+	for _, s := range []string{"Broadcom (LSI) 9211-8i Flashed to IT Mode", "PERC H730P Mini", "Seagate ST4000NM0035-1V4107", "INTEL SSDSC2KB960G8"} {
+		if Removable(s) {
+			t.Errorf("should be kept: %q", s)
+		}
+	}
+}

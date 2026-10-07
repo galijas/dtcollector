@@ -8,7 +8,8 @@ import (
 )
 
 // placeholders are DMI filler values that name no real product.
-var placeholderRe = regexp.MustCompile(`(?i)^(to be filled.*|system product name|default string|not specified|unknown|none|n/a|0+)$`)
+// "ProductCode" is the model cheap USB card readers report.
+var placeholderRe = regexp.MustCompile(`(?i)^(to be filled.*|system product name|default string|not specified|unknown|none|n/a|0+|productcode)$`)
 
 func usable(s string) bool {
 	s = tidy(s)
@@ -18,6 +19,23 @@ func usable(s string) bool {
 // virtualRe marks virtual devices (BMC virtual media, hypervisor disks and
 // NICs, VM platforms), which are not hardware to validate.
 var virtualRe = regexp.MustCompile(`(?i)virtual|virtio|qemu|vmware|vbox`)
+
+// removableRe marks removable and optical media (USB flash disks, card
+// readers, SD modules, CD/DVD/BD drives), which reports list as drives and
+// sometimes as storage controllers. They are not hardware to validate.
+var removableRe = regexp.MustCompile(`(?i)\bUSB|Flash Disk|Flash Drive|DataTraveler|Cruzer|UDisk|JetFlash|Card Reader|SD/MMC|Media Reader|Mass Storage|STORE N|Internal Dual SD|IDSDM|` +
+	`\bDVD|\bCD-?(ROM|RW|R)\b|\bBD-?(ROM|RE|RW|R)\b|Blu-?ray|HL-DT-ST|TSSTcorp|PLDS|Optiarc|Slimtype`)
+
+// Removable reports whether a part name (or a raw name it was seen as) is
+// removable or optical media, or a placeholder model such as "ProductCode".
+func Removable(names ...string) bool {
+	for _, n := range names {
+		if removableRe.MatchString(n) || placeholderRe.MatchString(tidy(n)) {
+			return true
+		}
+	}
+	return false
+}
 
 // Storage controllers follow the SW Analytics rules: only RAID/HBA cards and
 // boot RAID devices are hardware to validate. Each pattern is matched
@@ -69,7 +87,8 @@ func FromReport(r *report.Report) []Part {
 	seen := map[string]bool{}
 	add := func(p Part) {
 		names := append([]string{p.Name}, p.Aliases...)
-		if IsVirtual(names...) || (p.Category == CatController && SkipController(names...)) {
+		if IsVirtual(names...) || ((p.Category == CatDrive || p.Category == CatController) && Removable(names...)) ||
+			(p.Category == CatController && SkipController(names...)) {
 			return
 		}
 		p.Status = StatusSupported

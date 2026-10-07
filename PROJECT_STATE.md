@@ -94,6 +94,14 @@ Done:
   and NVMe drives listed as controllers are skipped. Checked against every
   SW Analytics controller string (`internal/hardware/testdata`). Migration
   10 removed the ones reports had added.
+- Removable and optical media are skipped (2026-10-07,
+  `hardware.Removable`), as drives and as storage controllers: USB flash
+  disks, card readers, SD modules, CD/DVD/BD drives (e.g. "Flash Disk",
+  "HL-DT-ST DVD+ -RW GU60N", "Chipsbank ... Flash Disk"), plus the
+  placeholder model "ProductCode" that cheap USB card readers report (also
+  added to the DMI placeholder list). Size can't be used: hw-collect reports
+  size 0 for many real SSDs. Migration 11 removed the five such parts
+  reports had added; no false positives among the 387 live parts.
 - Matching is conservative (exact after normalization), so a lspci-style
   name like "Intel Ethernet Controller X550" is added next to the
   datasheet's "Intel X550"; admins merge by deleting one. Smarter matching
@@ -206,7 +214,7 @@ Built on 2026-09-30 (all live):
   (snapshot of the live list, 370 parts; refresh with `export-hardware`).
 - Export PDF button (list as filtered), HowTo: Upload SWHW data window.
 - Account types Admin / User.
-- SWHW Collector script is built (`~/claude/SWHW_Collector`, GitHub
+- SWHW Collector script is built (`~/claude/Projects/SWHW_Collector`, GitHub
   galijas/swhw); DT Collector accepts its reports.
 
 Possible next steps (the user decides):
