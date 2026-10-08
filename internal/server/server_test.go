@@ -867,6 +867,15 @@ func TestDiagInfo(t *testing.T) {
 			t.Errorf("missing %q in %q", w, s)
 		}
 	}
+	// Rolling test (report ba2c068c): the calls running at once fall again, so
+	// "began at" is the earliest cause in time, not the lowest call count.
+	c293, s332, c16, s382 := 293, 332, 16, 382
+	roll := report.Test{Mode: "rolling", Result: report.Result{StopReason: "target_not_reached", MaxConcurrentCalls: 357,
+		Failures: []report.Failure{{Cause: "no_answer", Count: 547, FirstAtCalls: &c293, FirstAtS: &s332},
+			{Cause: "rejected", SIPCode: 603, Count: 126, FirstAtCalls: &c16, FirstAtS: &s382}}}}
+	if s := diagInfo(rep162, roll); !strings.Contains(s, "Failures began at 293 calls:") {
+		t.Errorf("rolling began-at: %q", s)
+	}
 	if diagInfo(rep161, report.Test{Result: report.Result{StopReason: "target_reached"}}) != "" {
 		t.Error("a clean target_reached test has nothing to explain")
 	}

@@ -414,13 +414,26 @@ func diagInfo(r *report.Report, t report.Test) string {
 	}
 	if len(res.Failures) > 0 {
 		var parts []string
-		first := -1
+		// The earliest cause in time: on a rolling test the calls running
+		// at once fall again, so the lowest count can be a later cause.
+		first, firstS := -1, -1
 		for i, f := range res.Failures {
 			if i < 3 {
 				parts = append(parts, failureText(r, f))
 			}
-			if c, ok := failureFirstAt(r, f); ok && (first < 0 || c < first) {
-				first = c
+			c, ok := failureFirstAt(r, f)
+			if !ok {
+				continue
+			}
+			ts := -1
+			if f.FirstAtS != nil {
+				ts = *f.FirstAtS
+			}
+			switch {
+			case first < 0,
+				ts >= 0 && (firstS < 0 || ts < firstS),
+				ts < 0 && firstS < 0 && c < first:
+				first, firstS = c, ts
 			}
 		}
 		s := ""
